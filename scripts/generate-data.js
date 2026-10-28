@@ -74,7 +74,7 @@ const bins = {
   SPEI: ["000000"],
 };
 const domains = ["gmail.com", "hotmail.com", "outlook.com", "yahoo.com.br", "proton.me", "uol.com.br"];
-const merchants = ["ZARA_BR_SP", "ZARA_BR_RJ", "ZARA_MX_CDMX", "ZARA_MX_GDL", "ZARA_CO_BOG"];
+const merchants = ["SHOP_BR_SP", "SHOP_BR_RJ", "SHOP_MX_CDMX", "SHOP_MX_GDL", "SHOP_CO_BOG"];
 
 const now = new Date("2026-02-26T12:00:00Z");
 const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -165,7 +165,7 @@ for (let i = 0; i < 50; i++) {
     cardBIN: "411111",
     productCategory: "Electronics",
     ipCountry: randomChoice(fraudIPs), // MISMATCH — key fraud indicator
-    merchantId: "ZARA_BR_SP",
+    merchantId: "SHOP_BR_SP",
   });
 }
 

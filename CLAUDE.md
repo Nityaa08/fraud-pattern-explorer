@@ -1,7 +1,7 @@
-# Zara eShop — Transaction Pattern Explorer
+# Transaction Pattern Explorer
 
 ## Project Context
-A frontend-only fraud analytics dashboard for risk analysts at Zara eShop. Lets analysts filter, visualize, and drill into ~900 transactions to identify fraud patterns.
+A frontend-only fraud analytics dashboard for risk analysts at an online retailer. Lets analysts filter, visualize, and drill into ~900 transactions to identify fraud patterns.
 
 ## Stack
 - Next.js 14 (App Router), TypeScript, Tailwind CSS, Recharts, date-fns

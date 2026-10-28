@@ -9,8 +9,8 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Transaction Pattern Explorer — Zara eShop",
-  description: "Fraud risk analytics dashboard for Zara eShop risk analysts",
+  title: "Transaction Pattern Explorer",
+  description: "Fraud risk analytics dashboard for risk analysts",
 };
 
 export default function RootLayout({

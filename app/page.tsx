@@ -175,7 +175,7 @@ export default function Dashboard() {
                 Transaction Pattern Explorer
               </h1>
               <p className="text-[11px] text-slate-400 font-medium tracking-wide uppercase">
-                Zara eShop &middot; Risk Analytics
+                Risk Analytics
               </p>
             </div>
           </div>
