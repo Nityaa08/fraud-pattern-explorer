@@ -1,7 +1,7 @@
 "use client";
 
 import { Transaction } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { findRelated, formatCurrency, formatDate } from "@/lib/utils";
 import Badge from "./Badge";
 
 interface Props {
@@ -44,11 +44,7 @@ export default function TransactionDetail({
 
   const ipMismatch = t.ipCountry !== t.country;
 
-  const related = allTransactions.filter(
-    (r) =>
-      r.id !== t.id &&
-      (r.customerEmail === t.customerEmail || r.cardLast4 === t.cardLast4)
-  );
+  const related = findRelated(t, allTransactions);
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-end fade-in" onClick={onClose}>
