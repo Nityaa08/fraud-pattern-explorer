@@ -68,6 +68,42 @@ export function formatDate(iso: string): string {
   });
 }
 
+/**
+ * Start of the hour (in the viewer's local time zone) that contains `iso`,
+ * as a UTC ISO string. Used as the time-chart bucket key, so a clicked bucket
+ * maps back to exact UTC instants even in zones like UTC+5:30.
+ */
+export function localHourStart(iso: string): string {
+  const d = new Date(iso);
+  d.setMinutes(0, 0, 0);
+  return d.toISOString();
+}
+
+/** [start, end] UTC ISO strings covering one hour that starts at `hourStartIso`. */
+export function hourRange(hourStartIso: string): [string, string] {
+  const start = new Date(hourStartIso).getTime();
+  return [new Date(start).toISOString(), new Date(start + 3_600_000 - 1).toISOString()];
+}
+
+/** True if the transaction carries real card data (PIX, Boleto, OXXO, etc. use "N/A"). */
+export function hasCardData(t: Transaction): boolean {
+  return /^\d{4}$/.test(t.cardLast4);
+}
+
+/**
+ * Other transactions sharing the customer email, or (card payments only)
+ * the same card BIN and last 4 digits.
+ */
+export function findRelated(t: Transaction, all: Transaction[]): Transaction[] {
+  const card = hasCardData(t);
+  return all.filter(
+    (r) =>
+      r.id !== t.id &&
+      (r.customerEmail === t.customerEmail ||
+        (card && hasCardData(r) && r.cardLast4 === t.cardLast4 && r.cardBIN === t.cardBIN))
+  );
+}
+
 export function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
   return arr.reduce((acc, item) => {
     const k = key(item);

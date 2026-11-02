@@ -1,7 +1,7 @@
 "use client";
 
 import { Transaction } from "@/lib/types";
-import { format, startOfHour } from "date-fns";
+import { format } from "date-fns";
 import {
   AreaChart,
   Area,
@@ -12,17 +12,20 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { groupBy } from "@/lib/utils";
+import { groupBy, localHourStart } from "@/lib/utils";
 
 interface Props {
   data: Transaction[];
-  onClickTime?: (hour: string) => void;
+  /** Called with the UTC ISO start of the clicked local hour. */
+  onClickTime?: (hourStartIso: string) => void;
 }
 
+/** Axis/tooltip label in the viewer's local time zone. */
+const hourLabel = (hourStartIso: string) => format(new Date(hourStartIso), "MMM dd HH:00");
+
 export default function TimeSeriesChart({ data, onClickTime }: Props) {
-  const byHour = groupBy(data, (t) =>
-    format(startOfHour(new Date(t.timestamp)), "MMM dd HH:00")
-  );
+  // Bucket key = UTC ISO string of the local hour start (sorts chronologically).
+  const byHour = groupBy(data, (t) => localHourStart(t.timestamp));
 
   const chartData = Object.entries(byHour)
     .map(([hour, txns]) => ({
@@ -58,9 +61,9 @@ export default function TimeSeriesChart({ data, onClickTime }: Props) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#94a3b8" }} interval="preserveStartEnd" axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+          <XAxis dataKey="hour" tickFormatter={hourLabel} tick={{ fontSize: 10, fill: "#94a3b8" }} interval="preserveStartEnd" axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} labelStyle={{ fontWeight: 600, color: "#334155" }} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} labelStyle={{ fontWeight: 600, color: "#334155" }} labelFormatter={(l) => hourLabel(String(l))} />
           <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
           <Area type="monotone" dataKey="approved" stackId="1" stroke="#10b981" strokeWidth={2} fill="url(#gradApproved)" name="Approved" />
           <Area type="monotone" dataKey="chargebacks" stackId="1" stroke="#f97316" strokeWidth={2} fill="url(#gradChargebacks)" name="Chargebacks" />

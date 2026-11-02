@@ -26,4 +26,5 @@ A frontend-only fraud analytics dashboard for risk analysts at an online retaile
 - `lib/types.ts` — TypeScript interfaces
 - `lib/data.ts` — data loading utilities
 - `lib/utils.ts` — filtering, formatting, groupBy
-- `scripts/generate-data.js` — test data generator
+- `scripts/generate-data.js` — seeded test data generator (`node scripts/generate-data.js [seed]`)
+- `tests/` — vitest tests (`npm test`)
