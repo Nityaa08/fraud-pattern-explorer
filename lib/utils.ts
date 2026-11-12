@@ -85,6 +85,33 @@ export function hourRange(hourStartIso: string): [string, string] {
   return [new Date(start).toISOString(), new Date(start + 3_600_000 - 1).toISOString()];
 }
 
+/**
+ * First instant of a calendar day ("YYYY-MM-DD") in the viewer's local time
+ * zone, as a UTC ISO string. Used by the From date picker.
+ */
+export function localDayStart(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toISOString();
+}
+
+/**
+ * Last millisecond of a local calendar day, as a UTC ISO string. Computed as
+ * the next local midnight minus 1 ms, so 23- and 25-hour DST days are right.
+ */
+export function localDayEnd(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(new Date(y, m - 1, d + 1).getTime() - 1).toISOString();
+}
+
+/** The local calendar day ("YYYY-MM-DD") that contains `iso`, for a date input's value. */
+export function localDay(iso: string): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+}
+
 /** True if the transaction carries real card data (PIX, Boleto, OXXO, etc. use "N/A"). */
 export function hasCardData(t: Transaction): boolean {
   return /^\d{4}$/.test(t.cardLast4);

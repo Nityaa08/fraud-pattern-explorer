@@ -1,6 +1,7 @@
 "use client";
 
 import { Filters } from "@/lib/types";
+import { localDay, localDayEnd, localDayStart } from "@/lib/utils";
 
 interface FilterPanelProps {
   filters: Filters;
@@ -198,17 +199,17 @@ export default function FilterPanel({
           <div className="space-y-2">
             <input
               type="date"
-              value={filters.dateRange[0]?.slice(0, 10) || ""}
+              value={localDay(filters.dateRange[0])}
               onChange={(e) =>
-                update({ dateRange: [e.target.value ? e.target.value + "T00:00:00.000Z" : dateBounds[0], filters.dateRange[1]] })
+                update({ dateRange: [e.target.value ? localDayStart(e.target.value) : dateBounds[0], filters.dateRange[1]] })
               }
               className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
             />
             <input
               type="date"
-              value={filters.dateRange[1]?.slice(0, 10) || ""}
+              value={localDay(filters.dateRange[1])}
               onChange={(e) =>
-                update({ dateRange: [filters.dateRange[0], e.target.value ? e.target.value + "T23:59:59.999Z" : dateBounds[1]] })
+                update({ dateRange: [filters.dateRange[0], e.target.value ? localDayEnd(e.target.value) : dateBounds[1]] })
               }
               className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
             />

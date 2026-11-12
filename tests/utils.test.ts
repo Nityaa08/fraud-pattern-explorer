@@ -2,7 +2,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { Filters, Transaction } from "../lib/types";
-import { applyFilters, findRelated, hasCardData, hourRange, localHourStart } from "../lib/utils";
+import {
+  applyFilters,
+  findRelated,
+  hasCardData,
+  hourRange,
+  localDay,
+  localDayEnd,
+  localDayStart,
+  localHourStart,
+} from "../lib/utils";
 
 const data: Transaction[] = JSON.parse(
   readFileSync(path.join(__dirname, "..", "public", "transactions.json"), "utf8")
@@ -61,6 +70,46 @@ describe("time-chart hour buckets", () => {
       "2026-02-24T02:30:00.000Z",
       "2026-02-24T03:29:59.999Z",
     ]);
+  });
+});
+
+describe("date-range pickers use the viewer's calendar day", () => {
+  it.each(ZONES)("picking one day filters exactly the rows on that local day (%s)", (tz) => {
+    process.env.TZ = tz;
+    const days = new Map<string, Transaction[]>();
+    for (const t of data) {
+      const k = localDay(t.timestamp);
+      days.set(k, [...(days.get(k) ?? []), t]);
+    }
+    expect(days.size).toBeGreaterThan(1);
+    for (const [day, rows] of Array.from(days)) {
+      const filtered = applyFilters(data, { ...noFilters, dateRange: [localDayStart(day), localDayEnd(day)] });
+      expect(filtered.map((t) => t.id).sort()).toEqual(rows.map((t) => t.id).sort());
+    }
+  });
+
+  it("a late-evening UTC row belongs to the next day in India", () => {
+    process.env.TZ = "Asia/Kolkata";
+    // 20:00Z on Feb 23 is 01:30 IST on Feb 24
+    expect(localDay("2026-02-23T20:00:00.000Z")).toBe("2026-02-24");
+    expect(localDayStart("2026-02-24")).toBe("2026-02-23T18:30:00.000Z");
+    expect(localDayEnd("2026-02-24")).toBe("2026-02-24T18:29:59.999Z");
+  });
+
+  it("a DST change day is 23 hours long in US Pacific", () => {
+    process.env.TZ = "America/Los_Angeles";
+    // Clocks went forward on 2026-03-08
+    const start = new Date(localDayStart("2026-03-08")).getTime();
+    const end = new Date(localDayEnd("2026-03-08")).getTime();
+    expect(end - start + 1).toBe(23 * 3_600_000);
+  });
+
+  it("the date input shows the local day of a range set by a chart click", () => {
+    process.env.TZ = "Asia/Kolkata";
+    const [from, to] = hourRange(localHourStart("2026-02-23T20:10:00.000Z"));
+    expect(localDay(from)).toBe("2026-02-24");
+    expect(localDay(to)).toBe("2026-02-24");
+    expect(localDay("")).toBe("");
   });
 });
 

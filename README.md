@@ -23,12 +23,12 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 19 tests
+npm test          # vitest: 27 tests
 npm run lint
 npm run build
 ```
 
-The tests cover the time-chart hour buckets in five time zones (UTC, India, Brazil, Nepal, US Pacific), related-transaction matching, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-02.
+The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-12.
 
 ## Deploy to Vercel
 
@@ -71,10 +71,11 @@ Or push to GitHub and import at [vercel.com/new](https://vercel.com/new).
 - The score also uses chargebacks, which arrive after a payment, so it is an exploration aid, not a pre-authorisation fraud model.
 - The generator uses a seeded random generator (seed 42 by default), so re-running it reproduces the committed file.
 
-## Known Issues (checked 2026-11-02)
+## Known Issues (checked 2026-11-12)
 
 Fixed on 2026-11-02: the time-chart click now filters the hour that was clicked in the viewer's time zone (including half-hour zones such as India); "related transactions" no longer links PIX, Boleto, OXXO, SPEI, PSE or Efecty rows through the `N/A` card placeholder; the generator no longer gives Colombia PIX or Boleto and picks merchants from the customer's country.
 
+Fixed on 2026-11-12: the From/To date pickers filter whole calendar days in the viewer's time zone (they used UTC days, so an analyst in India picking Feb 24 got rows from 05:30 IST Feb 24 to 05:29 IST Feb 25), and after a time-chart click they show the local day of the selected hour.
+
 - **All amounts are in USD.** Brazilian, Mexican and Colombian payments are generated and shown in USD, not BRL, MXN or COP.
-- **Date-range inputs use UTC days.** The From/To date pickers in the filter panel filter whole UTC calendar days, not days in the viewer's time zone.
 - **The deployed site is updated by Vercel after merge.** These fixes were checked with `npm test`, `npm run lint` and `npm run build`, not on the live deployment.
