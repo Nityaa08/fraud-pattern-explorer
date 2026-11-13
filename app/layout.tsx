@@ -10,7 +10,8 @@ const geistSans = localFont({
 
 export const metadata: Metadata = {
   title: "Transaction Pattern Explorer",
-  description: "Fraud risk analytics dashboard for risk analysts",
+  description:
+    "Interactive fraud-pattern dashboard over 900 synthetic transactions: linked filters, chart-click drill-down and rule-based risk flags. A demo by Nityashree S.",
 };
 
 export default function RootLayout({

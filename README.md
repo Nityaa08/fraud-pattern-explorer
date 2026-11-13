@@ -1,6 +1,33 @@
 # Transaction Pattern Explorer
 
-A frontend-only fraud analytics dashboard that helps risk analysts visually identify fraud patterns from suspicious transactions.
+**Live demo: [fraud-pattern-explorer.vercel.app](https://fraud-pattern-explorer.vercel.app)** · by [Nityashree S](https://nityashree.in)
+
+A frontend-only fraud analytics dashboard that helps risk analysts visually find fraud patterns in a set of transactions: linked filters, chart-click drill-down, rule-based risk flags and a detail panel. It runs on 900 synthetic transactions with one planted pattern.
+
+[![Dashboard: stats bar, filters, time series with a chargeback spike, country, payment-method and amount charts](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
+
+## Why
+
+An analyst who suspects an attack needs to move from "something is off" to "these 50 rows" quickly. Every chart here is also a filter, so one click on the chargeback spike narrows the whole dashboard to that hour; the High Risk toggle and the detail panel then show the shared signals (IP country, card range, email). Try it on the live demo: the planted pattern is described under [Embedded Fraud Pattern](#embedded-fraud-pattern).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    G[scripts/generate-data.js<br/>seeded generator] --> J[(public/transactions.json<br/>900 synthetic rows)]
+    J -->|fetch on load| P[app/page.tsx<br/>all state: filters, selection]
+    P --> R[lib/utils.ts<br/>computeRiskScore · applyFilters]
+    R --> P
+    P --> F[FilterPanel]
+    P --> C[4 Recharts charts]
+    P --> T[TransactionTable<br/>sort · paginate · CSV]
+    P --> D[TransactionDetail<br/>related rows]
+    C -->|click toggles a filter| P
+    F -->|change| P
+    T -->|row click| D
+```
+
+No backend: the data is a static JSON file, and filtering, scoring and charting all run in the browser. State lives in one component and flows down; chart clicks and filter changes flow back up.
 
 ## Quick Start
 
@@ -32,12 +59,7 @@ The tests cover the time-chart hour buckets and the From/To date pickers in five
 
 ## Deploy to Vercel
 
-```bash
-npm i -g vercel
-vercel
-```
-
-Or push to GitHub and import at [vercel.com/new](https://vercel.com/new).
+The live demo is a Vercel project linked to this repository; every push to `main` deploys it. To deploy your own copy, import the repository at [vercel.com/new](https://vercel.com/new) (Next.js is detected automatically, no environment variables are needed).
 
 ## Tech Stack
 
@@ -78,4 +100,10 @@ Fixed on 2026-11-02: the time-chart click now filters the hour that was clicked 
 Fixed on 2026-11-12: the From/To date pickers filter whole calendar days in the viewer's time zone (they used UTC days, so an analyst in India picking Feb 24 got rows from 05:30 IST Feb 24 to 05:29 IST Feb 25), and after a time-chart click they show the local day of the selected hour.
 
 - **All amounts are in USD.** Brazilian, Mexican and Colombian payments are generated and shown in USD, not BRL, MXN or COP.
-- **The deployed site is updated by Vercel after merge.** These fixes were checked with `npm test`, `npm run lint` and `npm run build`, not on the live deployment.
+- **The risk score is tuned to the planted pattern** (see Data), so the dashboard shows the exploration workflow, not a fraud model.
+
+The live site is deployed by Vercel from `main` on every push (checked 2026-11-13: the production deployment matches the latest commit).
+
+---
+
+Built by [Nityashree S](https://nityashree.in) · [GitHub](https://github.com/Nityaa08)

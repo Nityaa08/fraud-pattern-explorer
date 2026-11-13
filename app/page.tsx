@@ -163,19 +163,33 @@ export default function Dashboard() {
                 Transaction Pattern Explorer
               </h1>
               <p className="text-[11px] text-slate-400 font-medium tracking-wide uppercase">
-                Risk Analytics
+                Risk analytics · synthetic data
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <span className="text-xs text-slate-400 tabular-nums">
               Showing <span className="font-semibold text-slate-600">{filtered.length}</span> of {allData.length}
             </span>
+            <a
+              href="https://github.com/Nityaa08/fraud-pattern-explorer"
+              className="hidden sm:inline text-xs font-medium text-slate-500 hover:text-slate-900 underline-offset-4 hover:underline"
+            >
+              Source on GitHub
+            </a>
           </div>
         </div>
       </header>
 
       <main className="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
+        {/* Demo note: what the data is and how to find the planted pattern */}
+        <p className="text-xs text-slate-500 bg-white border border-slate-200/80 rounded-lg px-4 py-2.5">
+          Demo over 900 generated transactions with one planted fraud pattern; no real customer data.
+          Try <span className="font-semibold text-slate-700">High Risk Only</span>, or click the spike in the time chart.
+          {" "}Built by{" "}
+          <a href="https://nityashree.in" className="underline underline-offset-2 hover:text-slate-900">Nityashree S</a>.
+        </p>
+
         {/* Stats */}
         <StatsBar data={filtered} />
 
