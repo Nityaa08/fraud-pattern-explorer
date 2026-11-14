@@ -1,54 +1,68 @@
 "use client";
 
-import { Transaction } from "@/lib/types";
-import { detectInsights } from "@/lib/insights";
+import { Insight } from "@/lib/insights";
 
 interface Props {
-  data: Transaction[];
+  insights: Insight[];
+  /** True if this insight's filter is already applied. */
+  isActive: (insight: Insight) => boolean;
+  onApply: (insight: Insight) => void;
 }
 
-const severityConfig = {
-  high: { bg: "bg-red-50", border: "border-red-200", text: "text-red-900", dot: "bg-red-500", icon: "text-red-500" },
-  medium: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-900", dot: "bg-amber-400", icon: "text-amber-500" },
-};
+const marker = { high: "bg-red-600", medium: "bg-amber-500" };
+const label = { high: "High", medium: "Medium" };
 
-export default function InsightsPanel({ data }: Props) {
-  const insights = detectInsights(data);
-
-  if (insights.length === 0) return null;
-
+/**
+ * Rule-based patterns in the current view. Each card has a button that
+ * applies the filters showing exactly its rows.
+ */
+export default function InsightsPanel({ insights, isActive, onApply }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-slate-800">Suspicious Patterns</h3>
-          <p className="text-[11px] text-slate-400">{insights.length} anomalies detected in current view</p>
-        </div>
+    <section className="card p-4" aria-labelledby="patterns-heading">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="patterns-heading" className="text-sm font-semibold text-slate-900">
+          Suspicious patterns
+          <span className="ml-2 font-normal text-slate-500">
+            {insights.length === 0 ? "none in this view" : `${insights.length} in this view`}
+          </span>
+        </h2>
+        <p className="text-[11px] text-slate-500">Fixed rules, re-run on every filter change</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-        {insights.map((insight, i) => {
-          const cfg = severityConfig[insight.severity];
-          return (
-            <div
-              key={i}
-              className={`rounded-lg border p-3.5 ${cfg.bg} ${cfg.border}`}
-            >
-              <div className="flex items-start gap-2">
-                <span className={`mt-0.5 inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold ${cfg.text}`}>{insight.title}</p>
-                  <p className={`text-[11px] ${cfg.text} opacity-70 mt-0.5 leading-relaxed`}>{insight.detail}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      {insights.length > 0 && (
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {insights.map((insight) => {
+            const active = isActive(insight);
+            return (
+              <li
+                key={insight.id}
+                className={`relative flex flex-col overflow-hidden rounded-lg border bg-white py-3 pl-4 pr-3 ${
+                  active ? "border-indigo-300 ring-1 ring-indigo-200" : "border-slate-200"
+                }`}
+              >
+                <span className={`absolute inset-y-0 left-0 w-1 ${marker[insight.severity]}`} aria-hidden />
+                <p className="eyebrow mb-1">
+                  <span className="sr-only">Severity: </span>
+                  {label[insight.severity]}
+                </p>
+                <p className="text-[13px] font-semibold leading-snug text-slate-900">{insight.title}</p>
+                <p className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{insight.detail}</p>
+                <button
+                  type="button"
+                  onClick={() => onApply(insight)}
+                  disabled={active}
+                  className={`mt-3 self-start rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    active
+                      ? "cursor-default bg-indigo-50 text-indigo-700"
+                      : "bg-slate-900 text-white hover:bg-slate-700"
+                  }`}
+                >
+                  {active ? `Showing these ${insight.count}` : `Show these ${insight.count} →`}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Transaction } from "@/lib/types";
-import { findRelated, formatCurrency, formatDate, riskLevel } from "@/lib/utils";
+import { findRelated, formatCurrency, formatDate, hasCardData, riskLevel, riskSignals } from "@/lib/utils";
 import Badge from "./Badge";
+import RiskMeter from "./RiskMeter";
 
 interface Props {
   transaction: Transaction | null;
@@ -11,139 +13,165 @@ interface Props {
   onSelectRelated: (txn: Transaction) => void;
 }
 
-function Row({ label, value, warn, mono }: { label: string; value: string; warn?: boolean; mono?: boolean }) {
+function Field({ label, value, warn, mono }: { label: string; value: string; warn?: boolean; mono?: boolean }) {
   return (
-    <div className="flex justify-between items-center py-2.5 border-b border-slate-50">
-      <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">{label}</span>
-      <span className={`text-sm font-medium text-right max-w-[220px] truncate ${mono ? "font-mono text-xs" : ""} ${warn ? "text-red-600" : "text-slate-800"}`}>
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <dt className="shrink-0 text-xs text-slate-500">{label}</dt>
+      <dd
+        className={`min-w-0 truncate text-right text-sm ${mono ? "font-mono text-[12px]" : ""} ${
+          warn ? "font-medium text-red-600" : "text-slate-800"
+        }`}
+        title={value}
+      >
         {value}
-      </span>
+      </dd>
     </div>
   );
 }
 
-function RiskBadge({ score }: { score: number }) {
-  const level = riskLevel(score);
-  const config =
-    level === "high" ? { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", label: "High Risk" } :
-    level === "medium" ? { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Medium" } :
-    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "Low Risk" };
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${config.bg} ${config.text} ${config.border}`}>
-      {config.label} &middot; {score}
-    </span>
-  );
-}
+const levelText = { high: "High risk", medium: "Medium risk", low: "Low risk" };
 
-export default function TransactionDetail({
-  transaction: t,
-  onClose,
-  allTransactions,
-  onSelectRelated,
-}: Props) {
+export default function TransactionDetail({ transaction: t, onClose, allTransactions, onSelectRelated }: Props) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const isOpen = t !== null;
+
+  // Escape closes; focus moves into the panel and back to where it was.
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+      // Keep Tab inside the panel while it is open.
+      if (e.key === "Tab" && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>("button, [href], [tabindex]:not([tabindex='-1'])");
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+      previous?.focus?.();
+    };
+  }, [isOpen, onClose]);
+
   if (!t) return null;
 
-  const ipMismatch = t.ipCountry !== t.country;
-
+  const mismatch = t.ipCountry !== t.country;
   const related = findRelated(t, allTransactions);
+  const signals = riskSignals(t);
+  const level = riskLevel(t.riskScore);
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-end fade-in" onClick={onClose}>
+    <div className="fade-in fixed inset-0 z-50 flex justify-end bg-slate-900/30" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-white h-full shadow-2xl overflow-y-auto slide-in"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-heading"
+        className="slide-in flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-          <h2 className="text-sm font-semibold text-slate-800">Transaction Detail</h2>
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <h2 id="detail-heading" className="text-sm font-semibold text-slate-900">
+            Transaction <span className="font-mono text-[12px] font-normal text-slate-500">{t.id}</span>
+          </h2>
           <button
+            ref={closeRef}
+            type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
-            aria-label="Close detail panel"
+            className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Close details (Escape)"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            Close ✕
           </button>
         </div>
 
-        <div className="p-5">
-          {/* Amount + badges */}
-          <div className="flex items-start justify-between mb-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-3xl font-bold text-slate-900 tracking-tight">
-                {formatCurrency(t.amount)}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">{formatDate(t.timestamp)}</p>
+              <p className="text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">{formatCurrency(t.amount)}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatDate(t.timestamp)}</p>
             </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <Badge value={t.status} />
-              <RiskBadge score={t.riskScore ?? 0} />
-            </div>
+            <Badge value={t.status} />
           </div>
 
-          {/* IP mismatch alert */}
-          {ipMismatch && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3.5 mb-5 flex items-start gap-2.5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <p className="text-xs font-semibold text-red-800">
-                  IP Country Mismatch
-                </p>
-                <p className="text-[11px] text-red-600 mt-0.5">
-                  Billing: {t.country} &rarr; IP: {t.ipCountry}
-                </p>
-              </div>
+          <div className="mt-5 rounded-lg border border-slate-200 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-slate-700">{levelText[level]}</p>
+              <RiskMeter score={t.riskScore} />
             </div>
-          )}
-
-          {/* Fields */}
-          <div className="space-y-0">
-            <Row label="Transaction ID" value={t.id} mono />
-            <Row label="Country" value={t.country} />
-            <Row label="IP Country" value={t.ipCountry} warn={ipMismatch} />
-            <Row label="Payment Method" value={t.paymentMethod} />
-            <Row label="Card BIN" value={t.cardBIN} mono />
-            <Row label="Card Last 4" value={t.cardLast4} mono />
-            <Row label="Customer Email" value={t.customerEmail} />
-            <Row label="Product Category" value={t.productCategory} />
-            <Row label="Merchant ID" value={t.merchantId} mono />
-          </div>
-
-          {/* Related Transactions */}
-          {related.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-slate-100">
-              <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                Related Transactions ({related.length})
-              </h3>
-              <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                {related.slice(0, 10).map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => onSelectRelated(r)}
-                    className="w-full text-left flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-slate-100 hover:bg-indigo-50 hover:border-indigo-100 transition-colors text-xs"
-                  >
-                    <div>
-                      <span className="font-semibold text-slate-800 tabular-nums">
-                        {formatCurrency(r.amount)}
-                      </span>
-                      <span className="text-slate-400 ml-2">
-                        {formatDate(r.timestamp)}
-                      </span>
-                    </div>
-                    <Badge value={r.status} />
-                  </button>
+            {signals.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {signals.map((s) => (
+                  <li key={s.label} className="flex justify-between text-xs text-slate-600">
+                    <span>{s.label}</span>
+                    <span className="tabular-nums text-slate-500">+{s.points}</span>
+                  </li>
                 ))}
-                {related.length > 10 && (
-                  <p className="text-[11px] text-slate-400 px-3 pt-1">
-                    +{related.length - 10} more related
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">No risk signals.</p>
+            )}
+            {t.riskScore === 100 && signals.reduce((a, s) => a + s.points, 0) > 100 && (
+              <p className="mt-1 text-[11px] text-slate-400">Capped at 100.</p>
+            )}
+          </div>
+
+          <dl className="mt-4 divide-y divide-slate-100">
+            <Field label="Billing country" value={t.country} />
+            <Field label="IP country" value={mismatch ? `${t.ipCountry} (differs)` : t.ipCountry} warn={mismatch} />
+            <Field label="Payment method" value={t.paymentMethod} />
+            <Field label="Card" value={hasCardData(t) ? `${t.cardBIN} ···· ${t.cardLast4}` : "No card"} mono />
+            <Field label="Customer" value={t.customerEmail} />
+            <Field label="Category" value={t.productCategory} />
+            <Field label="Merchant" value={t.merchantId} mono />
+          </dl>
+
+          <div className="mt-6">
+            <h3 className="eyebrow mb-1">Related transactions ({related.length})</h3>
+            <p className="mb-2 text-[11px] text-slate-500">Same customer email, or the same card (BIN and last 4)</p>
+            {related.length === 0 ? (
+              <p className="text-xs text-slate-400">None in the data.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                {related.slice(0, 10).map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectRelated(r)}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-slate-50"
+                    >
+                      <span className="tabular-nums">
+                        <span className="font-medium text-slate-900">{formatCurrency(r.amount)}</span>
+                        <span className="ml-2 text-slate-500">{formatDate(r.timestamp)}</span>
+                      </span>
+                      <Badge value={r.status} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {related.length > 10 && (
+              <p className="mt-1.5 text-[11px] text-slate-500">+{related.length - 10} more</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

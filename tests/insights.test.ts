@@ -12,6 +12,7 @@ import {
   riskLevel,
   HIGH_RISK,
 } from "../lib/utils";
+import * as utils from "../lib/utils";
 import { detectInsights, findChargebackBurst } from "../lib/insights";
 import { activeFilterChips } from "../lib/filterChips";
 
@@ -211,5 +212,22 @@ describe("table sort", () => {
     const before = data.map((t) => t.id);
     sortTransactions(data, "country", "asc");
     expect(data.map((t) => t.id)).toEqual(before);
+  });
+});
+
+describe("amount buckets", () => {
+  it("clicking a bucket filters exactly its rows, and is recognised as selected", () => {
+    const { AMOUNT_BUCKETS, bucketRange, selectedBucket } = utils;
+    const upper = Math.ceil(Math.max(...data.map((t) => t.amount)));
+    let total = 0;
+    for (const b of AMOUNT_BUCKETS) {
+      const range = bucketRange(b, upper);
+      const shown = applyFilters(data, { ...all, amountRange: range });
+      expect(shown.length).toBe(data.filter((t) => t.amount >= b.min && t.amount < b.max).length);
+      expect(selectedBucket(range, upper)).toBe(b);
+      total += shown.length;
+    }
+    expect(total).toBe(data.length);
+    expect(selectedBucket([0, upper], upper)).toBeNull();
   });
 });

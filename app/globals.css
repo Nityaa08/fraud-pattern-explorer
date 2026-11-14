@@ -3,50 +3,62 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
-    @apply text-slate-800 bg-slate-50 antialiased;
+    @apply bg-[#f5f6f8] text-slate-800 antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-indigo-500 ring-offset-1;
   }
 }
 
-/* Custom scrollbar for webkit browsers */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white;
+  }
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-slate-500;
+  }
 }
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
+
+/* Thin scrollbars for the table and the detail panel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
+  @apply rounded-full bg-slate-300;
 }
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400;
-}
-
-/* Smooth transitions */
-* {
-  @apply transition-colors duration-150;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Recharts tooltip override */
-.recharts-tooltip-wrapper .recharts-default-tooltip {
-  @apply !rounded-lg !border-slate-200 !shadow-lg !px-3 !py-2;
+/* Recharts: no focus outline box around the whole chart on click */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
 }
 
-/* Slide-in animation for detail panel */
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
 .slide-in {
-  animation: slideIn 0.25s ease-out;
+  animation: slideIn 0.2s ease-out;
 }
-
-/* Fade-in for overlay */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 .fade-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-in,
+  .fade-in {
+    animation: none;
+  }
 }

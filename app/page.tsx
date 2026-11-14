@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Transaction, Filters } from "@/lib/types";
-import { loadTransactions, getUniqueValues, getAmountRange, getDateRange } from "@/lib/data";
-import { applyFilters, computeRiskScore, hourRange } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Filters, Transaction } from "@/lib/types";
+import { getAmountRange, getDateRange, getUniqueValues, loadTransactions } from "@/lib/data";
+import {
+  AMOUNT_BUCKETS,
+  applyFilters,
+  bucketKey,
+  bucketRange,
+  computeRiskScore,
+  hourRange,
+  selectedBucket,
+} from "@/lib/utils";
+import { detectInsights, Insight } from "@/lib/insights";
 import { activeFilterChips } from "@/lib/filterChips";
 import FilterPanel from "@/components/filters/FilterPanel";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart";
@@ -27,210 +36,263 @@ const defaultFilters: Filters = {
   customerEmails: [],
 };
 
+const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+
+/** True if applying `patch` would not change `f`. */
+function includesPatch(f: Filters, patch: Partial<Filters>): boolean {
+  return (Object.keys(patch) as (keyof Filters)[]).every(
+    (k) => JSON.stringify(f[k]) === JSON.stringify(patch[k])
+  );
+}
+
 export default function Dashboard() {
   const [allData, setAllData] = useState<Transaction[]>([]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [amountBounds, setAmountBounds] = useState<[number, number]>([0, 1000]);
   const [dateBounds, setDateBounds] = useState<[string, string]>(["", ""]);
-  const [countries, setCountries] = useState<string[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [statuses, setStatuses] = useState<string[]>([]);
+  const [options, setOptions] = useState({ countries: [] as string[], methods: [] as string[], statuses: [] as string[] });
 
   useEffect(() => {
     loadTransactions()
       .then((data) => {
         const enriched = data.map((t) => ({ ...t, riskScore: computeRiskScore(t) }));
-        setAllData(enriched);
         const ab = getAmountRange(enriched);
         const db = getDateRange(enriched);
+        setAllData(enriched);
         setAmountBounds(ab);
         setDateBounds(db);
-        setCountries(getUniqueValues(enriched, "country"));
-        setPaymentMethods(getUniqueValues(enriched, "paymentMethod"));
-        setStatuses(getUniqueValues(enriched, "status"));
+        setOptions({
+          countries: getUniqueValues(enriched, "country"),
+          methods: getUniqueValues(enriched, "paymentMethod"),
+          statuses: getUniqueValues(enriched, "status"),
+        });
         setFilters({ ...defaultFilters, amountRange: ab, dateRange: db });
         setLoading(false);
       })
       .catch((err) => {
-        setError("Failed to load transaction data.");
         console.error(err);
+        setError("Could not load the transaction data.");
         setLoading(false);
       });
   }, []);
 
   const filtered = useMemo(() => applyFilters(allData, filters), [allData, filters]);
 
-  const resetFilters = useCallback(() =>
-    setFilters({ ...defaultFilters, amountRange: amountBounds, dateRange: dateBounds }),
-    [amountBounds, dateBounds]
+  // Each chart shows the data filtered by everything except its own
+  // dimension, so a selected bar stays next to the others for comparison.
+  const exceptDate = useMemo(
+    () => applyFilters(allData, { ...filters, dateRange: dateBounds }),
+    [allData, filters, dateBounds]
+  );
+  const exceptCountry = useMemo(() => applyFilters(allData, { ...filters, countries: [] }), [allData, filters]);
+  const exceptMethod = useMemo(() => applyFilters(allData, { ...filters, paymentMethods: [] }), [allData, filters]);
+  const exceptAmount = useMemo(
+    () => applyFilters(allData, { ...filters, amountRange: amountBounds }),
+    [allData, filters, amountBounds]
   );
 
-  const handleCountryClick = (country: string) => {
-    setFilters((f) => ({
-      ...f,
-      countries: f.countries.includes(country)
-        ? f.countries.filter((c) => c !== country)
-        : [...f.countries, country],
-    }));
-  };
+  const insights = useMemo(() => detectInsights(filtered), [filtered]);
+  const bounds = useMemo(() => ({ amount: amountBounds, date: dateBounds }), [amountBounds, dateBounds]);
+  const chips = activeFilterChips(filters, bounds);
 
-  const handleMethodClick = (method: string) => {
-    setFilters((f) => ({
-      ...f,
-      paymentMethods: f.paymentMethods.includes(method)
-        ? f.paymentMethods.filter((m) => m !== method)
-        : [...f.paymentMethods, method],
-    }));
-  };
+  const resetFilters = useCallback(
+    () => setFilters({ ...defaultFilters, amountRange: amountBounds, dateRange: dateBounds }),
+    [amountBounds, dateBounds]
+  );
+  const closeDetail = useCallback(() => setSelected(null), []);
 
-  const handleTimeClick = (hourStartIso: string) => {
+  const applyInsight = (insight: Insight) => setFilters((f) => ({ ...f, ...insight.filter }));
+
+  const onTimeClick = (hourStartIso: string) => {
     if (Number.isNaN(new Date(hourStartIso).getTime())) return;
-    setFilters((f) => ({ ...f, dateRange: hourRange(hourStartIso) }));
+    const range = hourRange(hourStartIso);
+    // Clicking the selected hour again clears the date filter.
+    setFilters((f) =>
+      f.dateRange[0] === range[0] && f.dateRange[1] === range[1] ? { ...f, dateRange: dateBounds } : { ...f, dateRange: range }
+    );
   };
 
-  // Active filters as removable tags, including date and amount ranges
-  const activeFilterTags = activeFilterChips(filters, { amount: amountBounds, date: dateBounds }).map((c) => ({
-    label: c.label,
-    onRemove: () => setFilters((f) => c.remove(f)),
-  }));
+  const currentBucket = selectedBucket(filters.amountRange, amountBounds[1]);
+  const onBucketClick = (key: string) => {
+    const b = AMOUNT_BUCKETS.find((x) => bucketKey(x) === key);
+    if (!b) return;
+    setFilters((f) =>
+      currentBucket && bucketKey(currentBucket) === key
+        ? { ...f, amountRange: amountBounds }
+        : { ...f, amountRange: bucketRange(b, amountBounds[1]) }
+    );
+  };
+
+  const dateNarrowed = filters.dateRange[0] > dateBounds[0] || filters.dateRange[1] < dateBounds[1];
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-[3px] border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 text-sm font-medium">Loading transaction data...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500" role="status">
+        Loading transactions…
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-8 max-w-sm text-center shadow-sm">
-          <p className="text-sm text-red-700 font-medium">{error}</p>
-          <button onClick={() => window.location.reload()} className="mt-3 text-xs text-red-600 underline">
-            Reload page
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="card max-w-sm p-6 text-center">
+          <p className="text-sm font-medium text-slate-900">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-3 text-xs font-medium text-indigo-600 underline">
+            Reload the page
           </button>
         </div>
       </div>
     );
   }
 
+  const filterPanel = (
+    <FilterPanel
+      filters={filters}
+      onChange={setFilters}
+      countries={options.countries}
+      paymentMethods={options.methods}
+      statuses={options.statuses}
+      amountBounds={amountBounds}
+      dateBounds={dateBounds}
+    />
+  );
+
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200/80 px-6 py-4 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-[1440px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-slate-900" aria-hidden>
+              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="white" strokeWidth="1.6">
+                <path d="M2 12 L6 7 L9 9.5 L14 3" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="14" cy="3" r="1.4" fill="#ef4444" stroke="none" />
               </svg>
-            </div>
-            <div>
-              <h1 className="text-base font-semibold text-slate-900 tracking-tight">
-                Transaction Pattern Explorer
-              </h1>
-              <p className="text-[11px] text-slate-400 font-medium tracking-wide uppercase">
-                Risk analytics · synthetic data
-              </p>
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold text-slate-900">Transaction Pattern Explorer</h1>
+              <p className="truncate text-[11px] text-slate-500">Fraud analytics demo · 900 synthetic transactions</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-slate-400 tabular-nums">
-              Showing <span className="font-semibold text-slate-600">{filtered.length}</span> of {allData.length}
+          <div className="flex shrink-0 items-center gap-4 text-xs">
+            <span className="tabular-nums text-slate-500" aria-live="polite">
+              <span className="font-semibold text-slate-900">{filtered.length.toLocaleString("en-US")}</span>
+              <span className="hidden sm:inline"> of {allData.length.toLocaleString("en-US")} shown</span>
             </span>
             <a
               href="https://github.com/Nityaa08/fraud-pattern-explorer"
-              className="hidden sm:inline text-xs font-medium text-slate-500 hover:text-slate-900 underline-offset-4 hover:underline"
+              className="hidden font-medium text-slate-600 hover:text-slate-900 sm:inline"
             >
-              Source on GitHub
+              GitHub
             </a>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
-        {/* Demo note: what the data is and how to find the planted pattern */}
-        <p className="text-xs text-slate-500 bg-white border border-slate-200/80 rounded-lg px-4 py-2.5">
-          Demo over 900 generated transactions with one planted fraud pattern; no real customer data.
-          Try <span className="font-semibold text-slate-700">High Risk Only</span>, or click the spike in the time chart.
-          {" "}Built by{" "}
-          <a href="https://nityashree.in" className="underline underline-offset-2 hover:text-slate-900">Nityashree S</a>.
+      <main className="mx-auto max-w-[1400px] space-y-4 px-4 py-5 sm:px-6">
+        <p className="text-xs leading-relaxed text-slate-500">
+          Generated data with one planted fraud attack; no real customers. Start with a suspicious pattern below, or click
+          the red spike in the hourly chart. Built by{" "}
+          <a href="https://nityashree.in" className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900">
+            Nityashree S
+          </a>
+          .
         </p>
 
-        {/* Stats */}
         <StatsBar data={filtered} />
 
-        {/* Active filter tags */}
-        {activeFilterTags.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Active:</span>
-            {activeFilterTags.map((tag, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium border border-indigo-100"
-              >
-                {tag.label}
-                <button
-                  onClick={tag.onRemove}
-                  className="ml-0.5 w-4 h-4 rounded-full hover:bg-indigo-200 flex items-center justify-center text-indigo-400 hover:text-indigo-600"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </span>
-            ))}
-            <button
-              onClick={resetFilters}
-              className="text-[11px] text-slate-400 hover:text-slate-600 font-medium underline underline-offset-2"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
+        <InsightsPanel insights={insights} isActive={(i) => includesPatch(filters, i.filter)} onApply={applyInsight} />
 
-        {/* Filters + Charts */}
-        <div className="flex gap-6">
-          <div className="w-[260px] shrink-0">
-            <FilterPanel
-              filters={filters}
-              onChange={setFilters}
-              countries={countries}
-              paymentMethods={paymentMethods}
-              statuses={statuses}
-              amountBounds={amountBounds}
-              dateBounds={dateBounds}
-              onReset={resetFilters}
-            />
-          </div>
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <TimeSeriesChart data={filtered} onClickTime={handleTimeClick} />
-            <CountryChart data={filtered} onClickCountry={handleCountryClick} />
-            <PaymentMethodChart data={filtered} onClickMethod={handleMethodClick} />
-            <AmountChart data={filtered} />
+        {/* Active filters */}
+        <div className="flex min-h-[32px] flex-wrap items-center gap-2" aria-label="Active filters">
+          <span className="eyebrow mr-1">Filters</span>
+          {chips.length === 0 ? (
+            <span className="text-xs text-slate-400">None. Every bar, hour and pattern above can be clicked to filter.</span>
+          ) : (
+            <>
+              {chips.map((c) => (
+                <span
+                  key={c.key}
+                  className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 py-0.5 pl-2.5 pr-1 text-xs font-medium text-indigo-800"
+                >
+                  {c.label}
+                  <button
+                    type="button"
+                    onClick={() => setFilters((f) => c.remove(f))}
+                    aria-label={`Remove filter ${c.label}`}
+                    className="grid h-5 w-5 place-items-center rounded-full text-indigo-500 hover:bg-indigo-100 hover:text-indigo-800"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <button type="button" onClick={resetFilters} className="ml-1 text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline">
+                Clear all
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[256px_minmax(0,1fr)]">
+          {/* Filters: a sidebar on large screens, a collapsible card on small ones */}
+          <aside className="card h-fit lg:sticky lg:top-[72px]" aria-label="Filters">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-slate-900 lg:cursor-default"
+              aria-expanded={filtersOpen}
+              aria-controls="filter-panel"
+              onClick={() => setFiltersOpen((o) => !o)}
+            >
+              <span>
+                All filters
+                {chips.length > 0 && <span className="ml-1.5 font-normal text-slate-500">({chips.length} active)</span>}
+              </span>
+              <span className="text-slate-400 lg:hidden" aria-hidden>
+                {filtersOpen ? "▴" : "▾"}
+              </span>
+            </button>
+            <div id="filter-panel" className={`border-t border-slate-200 ${filtersOpen ? "block" : "hidden"} lg:block`}>
+              {filterPanel}
+            </div>
+          </aside>
+
+          <div className="min-w-0 space-y-4">
+            <TimeSeriesChart data={exceptDate} selectedRange={dateNarrowed ? filters.dateRange : null} onClickTime={onTimeClick} />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <CountryChart
+                data={exceptCountry}
+                selected={filters.countries}
+                onClickCountry={(c) => setFilters((f) => ({ ...f, countries: toggle(f.countries, c) }))}
+              />
+              <PaymentMethodChart
+                data={exceptMethod}
+                selected={filters.paymentMethods}
+                onClickMethod={(m) => setFilters((f) => ({ ...f, paymentMethods: toggle(f.paymentMethods, m) }))}
+              />
+              <AmountChart
+                data={exceptAmount}
+                selected={currentBucket ? bucketKey(currentBucket) : null}
+                onClickBucket={onBucketClick}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Insights */}
-        <InsightsPanel data={filtered} />
+        <TransactionTable data={filtered} onSelect={setSelected} selectedId={selected?.id ?? null} />
 
-        {/* Table */}
-        <TransactionTable data={filtered} onSelect={setSelected} />
+        <footer className="pb-6 pt-2 text-center text-[11px] text-slate-400">
+          Risk score: IP country differs +40, chargeback +25, over $400 +15, proton.me email +10, card +5, electronics +5.
+        </footer>
       </main>
 
-      {/* Detail panel */}
       <TransactionDetail
         transaction={selected}
-        onClose={() => setSelected(null)}
+        onClose={closeDetail}
         allTransactions={allData}
         onSelectRelated={setSelected}
       />

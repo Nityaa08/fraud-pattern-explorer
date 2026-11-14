@@ -1,174 +1,154 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Transaction } from "@/lib/types";
-import { formatCurrency, formatDate, exportToCSV, riskLevel, sortTransactions, SortDir, SortKey } from "@/lib/utils";
+import { exportToCSV, formatCurrency, formatDate, riskLevel, sortTransactions, SortDir, SortKey } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
-import { useState, useEffect } from "react";
+import RiskMeter from "@/components/ui/RiskMeter";
 
 interface Props {
   data: Transaction[];
   onSelect: (txn: Transaction) => void;
+  selectedId: string | null;
 }
 
+const PAGE_SIZE = 15;
 
-function RiskDot({ score }: { score: number }) {
-  const level = riskLevel(score);
-  const color = level === "high" ? "bg-red-500" : level === "medium" ? "bg-amber-400" : "bg-emerald-400";
-  const ring = level === "high" ? "ring-red-200" : level === "medium" ? "ring-amber-200" : "ring-emerald-200";
-  return (
-    <div className="flex items-center gap-1.5" title={`Risk score: ${score}`}>
-      <span className={`inline-block w-2.5 h-2.5 rounded-full ${color} ring-2 ${ring}`} />
-      <span className="text-xs text-slate-500 tabular-nums font-medium">{score}</span>
-    </div>
-  );
-}
+const th = "px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.06em] text-slate-500 whitespace-nowrap";
 
-export default function TransactionTable({ data, onSelect }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("timestamp");
+export default function TransactionTable({ data, onSelect, selectedId }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>("riskScore");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
-  const pageSize = 15;
 
-  useEffect(() => { setPage(0); }, [data]);
+  // A new filter result starts at page 1.
+  useEffect(() => setPage(0), [data]);
+
+  const sorted = useMemo(() => sortTransactions(data, sortKey, sortDir), [data, sortKey, sortDir]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageData = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(sortDir === "asc" ? "desc" : "asc");
-    } else {
+    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else {
       setSortKey(key);
-      setSortDir("desc");
+      setSortDir(key === "country" || key === "status" ? "asc" : "desc");
     }
     setPage(0);
   };
 
-  const sorted = sortTransactions(data, sortKey, sortDir);
+  const SortTh = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => {
+    const active = sortKey === field;
+    return (
+      <th
+        scope="col"
+        className={`${th} ${className}`}
+        aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+      >
+        <button
+          type="button"
+          onClick={() => toggleSort(field)}
+          className={`inline-flex items-center gap-1 uppercase tracking-[0.06em] hover:text-slate-900 ${active ? "text-slate-900" : ""}`}
+        >
+          {label}
+          <span aria-hidden className={active ? "text-indigo-600" : "text-slate-300"}>
+            {active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
-  const pageData = sorted.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(data.length / pageSize);
-
-  const SortHeader = ({ label, field }: { label: string; field: SortKey }) => (
-    <th
-      className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none group"
-      onClick={() => toggleSort(field)}
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {sortKey === field ? (
-          <span className="text-indigo-500">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
-        ) : (
-          <span className="text-slate-300 opacity-0 group-hover:opacity-100">{"\u2195"}</span>
-        )}
-      </span>
-    </th>
-  );
+  const first = sorted.length ? page * PAGE_SIZE + 1 : 0;
+  const last = Math.min((page + 1) * PAGE_SIZE, sorted.length);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+    <section className="card overflow-hidden" aria-labelledby="txn-heading">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">
+          <h2 id="txn-heading" className="text-sm font-semibold text-slate-900">
             Transactions
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">{data.length} results</p>
+          </h2>
+          <p className="text-[11px] text-slate-500">Click a row (or press Enter on it) for details and related payments</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => exportToCSV(data, "transactions-export.csv")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Export CSV
-          </button>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-1.5 text-xs">
-              <button
-                onClick={() => setPage(Math.max(0, page - 1))}
-                disabled={page === 0}
-                className="px-2.5 py-1.5 rounded-md border border-slate-200 disabled:opacity-25 hover:bg-slate-50 text-slate-600 font-medium"
-              >
-                Prev
-              </button>
-              <span className="text-slate-400 tabular-nums px-1">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                disabled={page >= totalPages - 1}
-                className="px-2.5 py-1.5 rounded-md border border-slate-200 disabled:opacity-25 hover:bg-slate-50 text-slate-600 font-medium"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => exportToCSV(sorted, "transactions-export.csv")}
+          disabled={sorted.length === 0}
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+        >
+          Export {sorted.length.toLocaleString("en-US")} rows as CSV
+        </button>
       </div>
 
-      {data.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="px-4 py-16 text-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <p className="text-sm text-slate-500 font-medium">No transactions match your filters</p>
-          <p className="text-xs text-slate-400 mt-1">Try adjusting or clearing your filters.</p>
+          <p className="text-sm font-medium text-slate-700">No transactions match these filters</p>
+          <p className="mt-1 text-xs text-slate-500">Remove a filter above to widen the view.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <SortHeader label="Risk" field="riskScore" />
-                <SortHeader label="Date" field="timestamp" />
-                <SortHeader label="Amount" field="amount" />
-                <SortHeader label="Country" field="country" />
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Payment</th>
-                <SortHeader label="Status" field="status" />
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Category</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">IP Country</th>
+            <thead className="border-b border-slate-200 bg-slate-50/70">
+              <tr>
+                <SortTh label="Risk" field="riskScore" />
+                <SortTh label="Time" field="timestamp" />
+                <SortTh label="Amount" field="amount" className="text-right" />
+                <SortTh label="Country" field="country" />
+                <th scope="col" className={`${th} hidden md:table-cell`}>
+                  Method
+                </th>
+                <SortTh label="Status" field="status" />
+                <th scope="col" className={`${th} hidden lg:table-cell`}>
+                  Customer
+                </th>
+                <th scope="col" className={`${th} hidden sm:table-cell`}>
+                  IP country
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {pageData.map((txn, idx) => {
-                const ipMismatch = txn.ipCountry !== txn.country;
-                const level = riskLevel(txn.riskScore);
+            <tbody className="divide-y divide-slate-100">
+              {pageData.map((t) => {
+                const level = riskLevel(t.riskScore);
+                const mismatch = t.ipCountry !== t.country;
+                const isSelected = t.id === selectedId;
                 return (
                   <tr
-                    key={txn.id}
-                    onClick={() => onSelect(txn)}
-                    className={`cursor-pointer transition-colors hover:bg-indigo-50/50 ${
-                      level === "high"
-                        ? "bg-red-50/60"
-                        : level === "medium"
-                        ? "bg-amber-50/40"
-                        : idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                    key={t.id}
+                    tabIndex={0}
+                    aria-label={`${formatCurrency(t.amount)} ${t.status} from ${t.country}, risk ${t.riskScore}. Open details.`}
+                    onClick={() => onSelect(t)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelect(t);
+                      }
+                    }}
+                    data-txn-id={t.id}
+                    className={`cursor-pointer outline-none transition-colors hover:bg-slate-50 focus-visible:bg-indigo-50 ${
+                      isSelected ? "bg-indigo-50" : level === "high" ? "bg-red-50/40" : ""
                     }`}
                   >
-                    <td className="px-4 py-3">
-                      <RiskDot score={txn.riskScore ?? 0} />
+                    <td className={`whitespace-nowrap px-3 py-2.5 ${level === "high" ? "border-l-2 border-red-500" : "border-l-2 border-transparent"}`}>
+                      <RiskMeter score={t.riskScore} />
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                      {formatDate(txn.timestamp)}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs tabular-nums text-slate-600">{formatDate(t.timestamp)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-slate-900">
+                      {formatCurrency(t.amount)}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap tabular-nums">
-                      {formatCurrency(txn.amount)}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">{t.country}</td>
+                    <td className="hidden whitespace-nowrap px-3 py-2.5 text-slate-600 md:table-cell">{t.paymentMethod}</td>
+                    <td className="px-3 py-2.5">
+                      <Badge value={t.status} />
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{txn.country}</td>
-                    <td className="px-4 py-3 text-slate-600">{txn.paymentMethod}</td>
-                    <td className="px-4 py-3">
-                      <Badge value={txn.status} />
+                    <td className="hidden max-w-[220px] truncate px-3 py-2.5 text-xs text-slate-500 lg:table-cell">
+                      {t.customerEmail}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{txn.productCategory}</td>
-                    <td className="px-4 py-3">
-                      {ipMismatch ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600">
-                          {txn.ipCountry}
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </span>
+                    <td className="hidden whitespace-nowrap px-3 py-2.5 text-xs sm:table-cell">
+                      {mismatch ? (
+                        <span className="font-medium text-red-600">{t.ipCountry} ≠</span>
                       ) : (
-                        <span className="text-xs text-slate-500">{txn.ipCountry}</span>
+                        <span className="text-slate-500">{t.ipCountry}</span>
                       )}
                     </td>
                   </tr>
@@ -178,6 +158,35 @@ export default function TransactionTable({ data, onSelect }: Props) {
           </table>
         </div>
       )}
-    </div>
+
+      {sorted.length > 0 && (
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-2.5 text-xs text-slate-500">
+          <span className="tabular-nums">
+            {first}–{last} of {sorted.length.toLocaleString("en-US")}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="px-1 tabular-nums">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

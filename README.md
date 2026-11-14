@@ -2,13 +2,13 @@
 
 **Live demo: [fraud-pattern-explorer.vercel.app](https://fraud-pattern-explorer.vercel.app)** · by [Nityashree S](https://nityashree.in)
 
-A frontend-only fraud analytics dashboard that helps risk analysts visually find fraud patterns in a set of transactions: linked filters, chart-click drill-down, rule-based risk flags and a detail panel. It runs on 900 synthetic transactions with one planted pattern.
+A frontend-only fraud analytics dashboard that helps risk analysts find fraud patterns in a set of transactions: rule-based pattern cards with one-click drill-down, linked filters, chart-click filtering and a detail panel that explains each risk score. It runs on 900 synthetic transactions with one planted pattern.
 
-[![Dashboard: stats bar, filters, time series with a chargeback spike, country, payment-method and amount charts](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
+[![Dashboard: summary, four suspicious-pattern cards, filters, and an hourly chart with a red chargeback spike on Feb 24](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
 
 ## Why
 
-An analyst who suspects an attack needs to move from "something is off" to "these 50 rows" quickly. Every chart here is also a filter, so one click on the chargeback spike narrows the whole dashboard to that hour; the High Risk toggle and the detail panel then show the shared signals (IP country, card range, email). Try it on the live demo: the planted pattern is described under [Embedded Fraud Pattern](#embedded-fraud-pattern).
+An analyst who suspects an attack needs to move from "something is off" to "these 50 rows" quickly. The first pattern card does that in one click; every chart is also a filter, so a click on the red chargeback spike narrows the whole dashboard to that hour, and the detail panel shows the shared signals (IP country, card range, email). Try it on the live demo: the planted pattern is described under [Embedded Fraud Pattern](#embedded-fraud-pattern).
 
 ## Architecture
 
@@ -50,12 +50,12 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 44 tests
+npm test          # vitest: 45 tests
 npm run lint
 npm run build
 ```
 
-The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
+The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, amount buckets, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
 
 ## Deploy to Vercel
 
@@ -71,18 +71,18 @@ The live demo is a Vercel project linked to this repository; every push to `main
 
 ## Features
 
-- **Multi-dimensional filtering**: Country, payment method, status, amount range, date range, text search, high-risk toggle
-- **4 interactive charts**: Time series, country distribution, payment method, amount histogram
-- **Chart-click filtering**: Click any chart segment to filter the entire dashboard instantly
-- **Suspicious Patterns Panel**: rule-based pattern flags (fixed thresholds) for chargeback clusters, IP mismatches, email velocity and high-amount outliers
-- **Risk scoring**: each transaction gets a 0–100 score from 6 hand-weighted signals (see Data)
-- **Sortable transaction table** with pagination, risk indicators, and CSV export
-- **Slide-out detail panel** with full transaction info, IP mismatch alerts, and related transactions (same customer email, or for card payments the same card BIN and last 4)
-- **Summary stats bar** showing chargebacks, rates, and IP mismatches
+- **Suspicious patterns with one-click drill-down**: four fixed rules (a 2-hour chargeback burst per country, customers with 3+ chargebacks, IP/billing country mismatches, chargebacks over 3x the average amount). Each card has a "Show these N" button that applies the filters for exactly its rows.
+- **Every chart is a filter**: click an hour in the time chart, or a row in the country, payment-method or amount breakdowns. Each chart shows the data filtered by everything except its own dimension, so a selected bar stays next to the others and a second value can be added.
+- **Colour means risk**: neutral greys for volume, red only for chargebacks and high risk, amber for medium risk. Breakdown bars show the chargeback share in red and the chargeback rate beside each count.
+- **Active-filter tags** for every filter, including date and amount ranges, each removable on its own.
+- **Filters**: search, high-risk and IP-mismatch switches, status, country, payment method, amount and local-time dates. A sidebar on wide screens, a collapsible card on phones.
+- **Risk scoring**: each transaction gets a 0–100 score from 6 hand-weighted signals (see Data). The detail panel lists the signals and their points.
+- **Sortable transaction table** (highest risk first by default) with pagination and CSV export of the filtered rows. Rows open with a click, or with Enter when focused.
+- **Detail panel** as an accessible dialog (Escape closes it, focus returns to the row) with the risk breakdown, IP mismatch, card, and related transactions (same customer email, or for card payments the same card BIN and last 4).
 
 ## Embedded Fraud Pattern
 
-50 high-value chargebacks ($400–$780) from Brazil via Visa, all in a 2-hour window (Feb 24, 02:00–04:00 UTC), targeting Electronics. IP addresses originate from Nigeria, Russia, and China — a clear billing/IP country mismatch. Transactions use clustered card numbers (70xx range) and repeat from 5 suspicious email addresses. The pattern can be found by observing the time series spike, filtering by chargebacks, or using the High Risk toggle. Time to discovery has not been measured with users.
+50 high-value chargebacks ($400–$780) from Brazil via Visa, all in a 2-hour window (Feb 24, 02:00–04:00 UTC), targeting Electronics. IP addresses originate from Nigeria, Russia, and China — a clear billing/IP country mismatch. Transactions use clustered card numbers (70xx range) and repeat from 5 suspicious email addresses. The pattern can be found from the first suspicious-pattern card, the red spike in the hourly chart, or the High Risk filter. Time to discovery has not been measured with users.
 
 ## Data
 

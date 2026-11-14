@@ -11,18 +11,27 @@ interface FilterPanelProps {
   statuses: string[];
   amountBounds: [number, number];
   dateBounds: [string, string];
-  onReset: () => void;
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+const inputCls =
+  "w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+
+function Group({ label, children, htmlFor }: { label: string; children: React.ReactNode; htmlFor?: string }) {
   return (
-    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+    <div className="space-y-2">
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className="eyebrow block">
+          {label}
+        </label>
+      ) : (
+        <p className="eyebrow">{label}</p>
+      )}
       {children}
-    </label>
+    </div>
   );
 }
 
-function MultiSelect({
+function Chips({
   label,
   options,
   selected,
@@ -33,38 +42,64 @@ function MultiSelect({
   selected: string[];
   onChange: (vals: string[]) => void;
 }) {
-  const toggle = (val: string) => {
-    onChange(
-      selected.includes(val)
-        ? selected.filter((v) => v !== val)
-        : [...selected, val]
-    );
-  };
-
+  const toggle = (val: string) =>
+    onChange(selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val]);
   return (
-    <div>
-      <SectionLabel>{label}</SectionLabel>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => toggle(opt)}
-            className={`px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${
-              selected.includes(opt)
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200"
-                : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600"
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
+    <Group label={label}>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+        {options.map((opt) => {
+          const on = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              aria-pressed={on}
+              onClick={() => toggle(opt)}
+              className={`rounded-md border px-2 py-1 text-xs font-medium capitalize transition-colors ${
+                on
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              }`}
+            >
+              {opt}
+            </button>
+          );
+        })}
       </div>
-    </div>
+    </Group>
   );
 }
 
-function Divider() {
-  return <div className="border-t border-slate-100 my-1" />;
+function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-3">
+      <span>
+        <span className="block text-sm font-medium text-slate-800">{label}</span>
+        <span className="block text-[11px] text-slate-500">{hint}</span>
+      </span>
+      <span className="relative mt-0.5 inline-flex shrink-0">
+        <input
+          type="checkbox"
+          role="switch"
+          className="peer sr-only"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="h-5 w-9 rounded-full bg-slate-200 transition-colors peer-checked:bg-red-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1" />
+        <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+      </span>
+    </label>
+  );
 }
 
 export default function FilterPanel({
@@ -75,147 +110,101 @@ export default function FilterPanel({
   statuses,
   amountBounds,
   dateBounds,
-  onReset,
 }: FilterPanelProps) {
-  const update = (partial: Partial<Filters>) =>
-    onChange({ ...filters, ...partial });
-
-  const activeCount =
-    filters.countries.length +
-    filters.paymentMethods.length +
-    filters.statuses.length +
-    (filters.amountRange[0] > amountBounds[0] || filters.amountRange[1] < amountBounds[1] ? 1 : 0) +
-    (filters.dateRange[0] > dateBounds[0] || filters.dateRange[1] < dateBounds[1] ? 1 : 0) +
-    (filters.searchQuery ? 1 : 0) +
-    (filters.highRiskOnly ? 1 : 0);
+  const update = (partial: Partial<Filters>) => onChange({ ...filters, ...partial });
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm h-fit sticky top-20">
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-slate-100">
-        <h2 className="text-sm font-semibold text-slate-800">Filters</h2>
-        {activeCount > 0 && (
-          <button
-            onClick={onReset}
-            className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            Reset ({activeCount})
-          </button>
-        )}
+    <div className="space-y-5 p-4">
+      <Group label="Search" htmlFor="search">
+        <input
+          id="search"
+          type="search"
+          placeholder="Email, ID, card BIN or last 4…"
+          value={filters.searchQuery}
+          onChange={(e) => update({ searchQuery: e.target.value })}
+          className={inputCls}
+        />
+      </Group>
+
+      <div className="space-y-3 rounded-lg bg-slate-50 p-3">
+        <Toggle
+          label="High risk only"
+          hint="Risk score 70 or more"
+          checked={filters.highRiskOnly}
+          onChange={(v) => update({ highRiskOnly: v })}
+        />
+        <Toggle
+          label="IP ≠ billing country"
+          hint="IP address in another country"
+          checked={filters.ipMismatchOnly}
+          onChange={(v) => update({ ipMismatchOnly: v })}
+        />
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Search */}
-        <div>
-          <SectionLabel>Search</SectionLabel>
-          <div className="relative">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Email, ID, card..."
-              value={filters.searchQuery}
-              onChange={(e) => update({ searchQuery: e.target.value })}
-              className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-          </div>
+      <Chips label="Status" options={statuses} selected={filters.statuses} onChange={(statuses) => update({ statuses })} />
+      <Chips
+        label="Country"
+        options={countries}
+        selected={filters.countries}
+        onChange={(countries) => update({ countries })}
+      />
+      <Chips
+        label="Payment method"
+        options={paymentMethods}
+        selected={filters.paymentMethods}
+        onChange={(paymentMethods) => update({ paymentMethods })}
+      />
+
+      <Group label="Amount (USD)">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            aria-label="Minimum amount"
+            min={amountBounds[0]}
+            max={filters.amountRange[1]}
+            value={filters.amountRange[0]}
+            onChange={(e) => update({ amountRange: [Number(e.target.value), filters.amountRange[1]] })}
+            className={inputCls}
+          />
+          <span className="text-slate-400">–</span>
+          <input
+            type="number"
+            aria-label="Maximum amount"
+            min={filters.amountRange[0]}
+            max={amountBounds[1]}
+            value={filters.amountRange[1]}
+            onChange={(e) => update({ amountRange: [filters.amountRange[0], Number(e.target.value)] })}
+            className={inputCls}
+          />
         </div>
+      </Group>
 
-        {/* High Risk Toggle */}
-        <button
-          onClick={() => update({ highRiskOnly: !filters.highRiskOnly })}
-          className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-            filters.highRiskOnly
-              ? "bg-red-600 text-white border-red-600 shadow-sm shadow-red-200"
-              : "bg-white text-red-500 border-red-200 hover:border-red-400 hover:bg-red-50"
-          }`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          High Risk Only
-        </button>
-
-        <Divider />
-
-        <MultiSelect
-          label="Country"
-          options={countries}
-          selected={filters.countries}
-          onChange={(countries) => update({ countries })}
-        />
-
-        <Divider />
-
-        <MultiSelect
-          label="Payment Method"
-          options={paymentMethods}
-          selected={filters.paymentMethods}
-          onChange={(paymentMethods) => update({ paymentMethods })}
-        />
-
-        <Divider />
-
-        <MultiSelect
-          label="Status"
-          options={statuses}
-          selected={filters.statuses}
-          onChange={(statuses) => update({ statuses })}
-        />
-
-        <Divider />
-
-        <div>
-          <SectionLabel>Amount Range (USD)</SectionLabel>
-          <div className="flex gap-2 items-center">
-            <input
-              type="number"
-              min={amountBounds[0]}
-              max={filters.amountRange[1]}
-              value={filters.amountRange[0]}
-              onChange={(e) =>
-                update({ amountRange: [Number(e.target.value), filters.amountRange[1]] })
-              }
-              className="flex-1 border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-            <span className="text-slate-300 text-xs font-medium">—</span>
-            <input
-              type="number"
-              min={filters.amountRange[0]}
-              max={amountBounds[1]}
-              value={filters.amountRange[1]}
-              onChange={(e) =>
-                update({ amountRange: [filters.amountRange[0], Number(e.target.value)] })
-              }
-              className="flex-1 border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-          </div>
+      <Group label="Dates (your time zone)">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+          <input
+            type="date"
+            aria-label="From date"
+            value={localDay(filters.dateRange[0])}
+            onChange={(e) =>
+              update({
+                dateRange: [e.target.value ? localDayStart(e.target.value) : dateBounds[0], filters.dateRange[1]],
+              })
+            }
+            className={inputCls}
+          />
+          <input
+            type="date"
+            aria-label="To date"
+            value={localDay(filters.dateRange[1])}
+            onChange={(e) =>
+              update({
+                dateRange: [filters.dateRange[0], e.target.value ? localDayEnd(e.target.value) : dateBounds[1]],
+              })
+            }
+            className={inputCls}
+          />
         </div>
-
-        <Divider />
-
-        <div>
-          <SectionLabel>Date Range</SectionLabel>
-          <div className="space-y-2">
-            <input
-              type="date"
-              value={localDay(filters.dateRange[0])}
-              onChange={(e) =>
-                update({ dateRange: [e.target.value ? localDayStart(e.target.value) : dateBounds[0], filters.dateRange[1]] })
-              }
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-            <input
-              type="date"
-              value={localDay(filters.dateRange[1])}
-              onChange={(e) =>
-                update({ dateRange: [filters.dateRange[0], e.target.value ? localDayEnd(e.target.value) : dateBounds[1]] })
-              }
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-          </div>
-        </div>
-      </div>
+      </Group>
     </div>
   );
 }
