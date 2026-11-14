@@ -164,6 +164,7 @@ function generateTransactions(seed = DEFAULT_SEED) {
   }
 
   // === EMBEDDED FRAUD PATTERN ===
+  const planted = [];
   // 50 chargebacks from Brazil, Visa, Electronics, in a 2-hour window on Feb 24,
   // high amounts ($400–$780), IP country mismatch (Nigeria, Russia, China)
   // Same few emails repeating (velocity pattern)
@@ -180,7 +181,7 @@ function generateTransactions(seed = DEFAULT_SEED) {
 
   for (let i = 0; i < 50; i++) {
     const ts = randomDate(fraudStart, fraudEnd);
-    transactions.push({
+    planted.push({
       id: uuid(),
       timestamp: ts.toISOString(),
       amount: randomFloat(400, 780),
@@ -197,6 +198,8 @@ function generateTransactions(seed = DEFAULT_SEED) {
     });
   }
 
+  transactions.push(...planted);
+
   // Shuffle (Fisher-Yates, seeded)
   for (let i = transactions.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
@@ -205,12 +208,26 @@ function generateTransactions(seed = DEFAULT_SEED) {
   return transactions;
 }
 
+/**
+ * IDs of the planted attack rows: the answer key for the rule scorecard.
+ * Written to its own file so the rules never see it; only the scorecard does.
+ */
+function plantedIds(transactions) {
+  return transactions
+    .filter((t) => t.ipCountry !== t.country)
+    .map((t) => t.id)
+    .sort();
+}
+
 function main() {
   const seed = process.argv[2] ? Number(process.argv[2]) : DEFAULT_SEED;
   const transactions = generateTransactions(seed);
   const outPath = path.join(__dirname, "..", "public", "transactions.json");
   fs.writeFileSync(outPath, JSON.stringify(transactions, null, 2) + "\n");
   console.log(`Generated ${transactions.length} transactions (seed ${seed}) → ${outPath}`);
+  const keyPath = path.join(__dirname, "..", "public", "planted.json");
+  fs.writeFileSync(keyPath, JSON.stringify(plantedIds(transactions), null, 2) + "\n");
+  console.log(`Answer key: ${plantedIds(transactions).length} planted IDs → ${keyPath}`);
 
   // Print stats
   const statuses = {};
@@ -223,6 +240,6 @@ function main() {
   console.log("Country distribution:", countries);
 }
 
-module.exports = { generateTransactions, paymentsByCountry, merchantsByCountry, CARD_METHODS };
+module.exports = { generateTransactions, plantedIds, paymentsByCountry, merchantsByCountry, CARD_METHODS };
 
 if (require.main === module) main();

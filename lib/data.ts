@@ -27,3 +27,10 @@ export function getDateRange(transactions: Transaction[]): [string, string] {
   );
   return [sorted[0].timestamp, sorted[sorted.length - 1].timestamp];
 }
+
+/** IDs of the planted attack rows (the scorecard's answer key). */
+export async function loadPlantedIds(): Promise<string[]> {
+  const res = await fetch("/planted.json");
+  if (!res.ok) throw new Error(`planted.json: ${res.status}`);
+  return res.json();
+}

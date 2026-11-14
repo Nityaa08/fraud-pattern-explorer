@@ -20,7 +20,7 @@ export default function InsightsPanel({ insights, isActive, onApply }: Props) {
   return (
     <section className="card p-4" aria-labelledby="patterns-heading">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="patterns-heading" className="text-sm font-semibold text-slate-900">
+        <h2 id="patterns-heading" className="scroll-mt-20 text-sm font-semibold text-slate-900">
           Suspicious patterns
           <span className="ml-2 font-normal text-slate-500">
             {insights.length === 0 ? "none in this view" : `${insights.length} in this view`}

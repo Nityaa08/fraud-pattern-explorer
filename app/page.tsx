@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Filters, Transaction } from "@/lib/types";
-import { getAmountRange, getDateRange, getUniqueValues, loadTransactions } from "@/lib/data";
+import { getAmountRange, getDateRange, getUniqueValues, loadPlantedIds, loadTransactions } from "@/lib/data";
 import {
   AMOUNT_BUCKETS,
   applyFilters,
@@ -23,6 +23,8 @@ import TransactionTable from "@/components/table/TransactionTable";
 import TransactionDetail from "@/components/ui/TransactionDetail";
 import StatsBar from "@/components/ui/StatsBar";
 import InsightsPanel from "@/components/ui/InsightsPanel";
+import CaseBrief from "@/components/ui/CaseBrief";
+import { buildScorecard } from "@/lib/scorecard";
 
 const defaultFilters: Filters = {
   countries: [],
@@ -52,6 +54,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [planted, setPlanted] = useState<Set<string> | null>(null);
 
   const [amountBounds, setAmountBounds] = useState<[number, number]>([0, 1000]);
   const [dateBounds, setDateBounds] = useState<[string, string]>(["", ""]);
@@ -81,6 +84,13 @@ export default function Dashboard() {
       });
   }, []);
 
+  // The answer key is only for the scorecard; the page works without it.
+  useEffect(() => {
+    loadPlantedIds()
+      .then((ids) => setPlanted(new Set(ids)))
+      .catch(() => setPlanted(null));
+  }, []);
+
   const filtered = useMemo(() => applyFilters(allData, filters), [allData, filters]);
 
   // Each chart shows the data filtered by everything except its own
@@ -97,16 +107,33 @@ export default function Dashboard() {
   );
 
   const insights = useMemo(() => detectInsights(filtered), [filtered]);
+  const allFilters = useMemo(
+    () => ({ ...defaultFilters, amountRange: amountBounds, dateRange: dateBounds }),
+    [amountBounds, dateBounds]
+  );
+  // Scored on all rows, so the numbers stay put while the analyst filters.
+  const allInsights = useMemo(() => detectInsights(allData), [allData]);
+  const scores = useMemo(
+    () => (planted && allData.length ? buildScorecard(allData, allInsights, allFilters, planted) : []),
+    [planted, allData, allInsights, allFilters]
+  );
+  const burst = allInsights.find((i) => i.id.startsWith("burst-"));
   const bounds = useMemo(() => ({ amount: amountBounds, date: dateBounds }), [amountBounds, dateBounds]);
   const chips = activeFilterChips(filters, bounds);
 
-  const resetFilters = useCallback(
-    () => setFilters({ ...defaultFilters, amountRange: amountBounds, dateRange: dateBounds }),
-    [amountBounds, dateBounds]
-  );
+  const resetFilters = useCallback(() => {
+    setFilters(allFilters);
+    setSelected(null);
+  }, [allFilters]);
   const closeDetail = useCallback(() => setSelected(null), []);
 
   const applyInsight = (insight: Insight) => setFilters((f) => ({ ...f, ...insight.filter }));
+
+  const openRiskiest = () => {
+    const pool = filtered.length ? filtered : allData;
+    const top = pool.reduce<Transaction | null>((best, t) => (!best || (t.riskScore ?? 0) > (best.riskScore ?? 0) ? t : best), null);
+    if (top) setSelected(top);
+  };
 
   const onTimeClick = (hourStartIso: string) => {
     if (Number.isNaN(new Date(hourStartIso).getTime())) return;
@@ -190,19 +217,28 @@ export default function Dashboard() {
             >
               GitHub
             </a>
+            <a href="https://nityashree.in" className="hidden font-medium text-slate-600 hover:text-slate-900 sm:inline">
+              Built by Nityashree S
+            </a>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1400px] space-y-4 px-4 py-5 sm:px-6">
-        <p className="text-xs leading-relaxed text-slate-500">
-          Generated data with one planted fraud attack; no real customers. Start with a suspicious pattern below, or click
-          the red spike in the hourly chart. Built by{" "}
-          <a href="https://nityashree.in" className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900">
-            Nityashree S
-          </a>
-          .
-        </p>
+        <CaseBrief
+          scores={scores}
+          plantedCount={planted?.size ?? 0}
+          onShowAttack={
+            burst
+              ? () => {
+                  setFilters({ ...allFilters, ...burst.filter });
+                  document.getElementById("patterns-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              : undefined
+          }
+          onOpenRiskiest={openRiskiest}
+          onReset={resetFilters}
+        />
 
         <StatsBar data={filtered} />
 

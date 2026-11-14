@@ -1,10 +1,33 @@
 # Transaction Pattern Explorer
 
+[![CI](https://github.com/Nityaa08/fraud-pattern-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Nityaa08/fraud-pattern-explorer/actions/workflows/ci.yml)
+
 **Live demo: [fraud-pattern-explorer.vercel.app](https://fraud-pattern-explorer.vercel.app)** · by [Nityashree S](https://nityashree.in)
 
 A frontend-only fraud analytics dashboard that helps risk analysts find fraud patterns in a set of transactions: rule-based pattern cards with one-click drill-down, linked filters, chart-click filtering and a detail panel that explains each risk score. It runs on 900 synthetic transactions with one planted pattern.
 
-[![Dashboard: summary, four suspicious-pattern cards, filters, and an hourly chart with a red chargeback spike on Feb 24](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
+[![Dashboard: a dark case-file panel with a three-step tour and a rule scorecard of precision and recall against the planted attack, then the summary and four suspicious-pattern cards](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
+
+## In 60 seconds
+
+| | |
+|---|---|
+| **The problem** | A fraud attack hides inside normal traffic. An analyst needs to get from "something is off" to "these 50 rows" fast, and needs to trust that the alerts are real. |
+| **What I built** | A Next.js dashboard where fixed rules flag suspicious patterns, every chart doubles as a filter, and each row explains its own risk score. A three-step tour at the top of the page shows the attack, opens the riskiest row and resets. |
+| **How I know it works** | The rules are scored against an answer key of the 50 planted rows (`public/planted.json`) that the rules never read. The scorecard is on the page and in the table below. |
+| **Engineering** | TypeScript, React state in one component, Recharts, Tailwind. 52 Vitest tests including five time zones and a daylight-saving day. CI runs type-check, lint, tests and build on every push. |
+
+**Rule scorecard** (seed-42 data, checked by `tests/scorecard.test.ts`):
+
+| Rule | Flags | Of them planted | Precision | Recall |
+|---|---|---|---|---|
+| Chargeback burst (Brazil, 2-hour window) | 51 | 50 | 98% | 100% |
+| Customer emails with 3+ chargebacks | 50 | 50 | 100% | 100% |
+| IP ≠ billing country | 50 | 50 | 100% | 100% |
+| Chargebacks over 3x the average | 20 | 20 | 100% | 40% |
+| Risk score 70+ | 50 | 50 | 100% | 100% |
+
+These numbers are high because the data is generated and clean: in this dataset only planted rows have an IP mismatch, so that rule is perfect by construction. They show that the rules and the UI find what was planted, not how the rules would do on real traffic. The high-amount rule is the useful counter-example: precise, but it finds only 40% of the attack on its own.
 
 ## Why
 
@@ -50,12 +73,12 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 45 tests
+npm test          # vitest: 52 tests
 npm run lint
 npm run build
 ```
 
-The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, amount buckets, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
+The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the rule scorecard (precision and recall arithmetic, and the scores of every rule against the answer key), the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, amount buckets, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
 
 ## Deploy to Vercel
 
@@ -71,6 +94,7 @@ The live demo is a Vercel project linked to this repository; every push to `main
 
 ## Features
 
+- **A 60-second tour and a rule scorecard** at the top of the page: what the dashboard is for, three buttons that show the attack, open the riskiest row and reset, and each rule's precision and recall against the answer key.
 - **Suspicious patterns with one-click drill-down**: four fixed rules (a 2-hour chargeback burst per country, customers with 3+ chargebacks, IP/billing country mismatches, chargebacks over 3x the average amount). Each card has a "Show these N" button that applies the filters for exactly its rows.
 - **Every chart is a filter**: click an hour in the time chart, or a row in the country, payment-method or amount breakdowns. Each chart shows the data filtered by everything except its own dimension, so a selected bar stays next to the others and a second value can be added.
 - **Colour means risk**: neutral greys for volume, red only for chargebacks and high risk, amber for medium risk. Breakdown bars show the chargeback share in red and the chargeback rate beside each count.
@@ -87,6 +111,7 @@ The live demo is a Vercel project linked to this repository; every push to `main
 ## Data
 
 - `public/transactions.json` holds 900 **synthetic** transactions made by `scripts/generate-data.js`. No real customer data is used.
+- `public/planted.json` is the answer key: the IDs of the 50 planted rows, written by the same generator. Only the scorecard reads it; the rules and the risk score never do.
 - The generator plants one fraud pattern (below). Normal rows always have an IP country equal to the billing country; planted rows never do.
 - Payment methods match the customer's country: Brazil uses Visa, Mastercard, PIX and Boleto; Mexico uses Visa, Mastercard, OXXO and SPEI; Colombia uses Visa, Mastercard, PSE and Efecty. Merchants are in the customer's country.
 - The risk score gives its largest weight (+40) to an IP/country mismatch, so it is **tuned to the planted pattern**. The High Risk filter (score 70 or more) flags exactly the 50 planted rows (checked 2026-11-14 on the seed-42 data). This shows the UI works; it does not show that the rules would detect real fraud.
