@@ -50,12 +50,12 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 27 tests
+npm test          # vitest: 44 tests
 npm run lint
 npm run build
 ```
 
-The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-12.
+The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
 
 ## Deploy to Vercel
 
@@ -89,13 +89,20 @@ The live demo is a Vercel project linked to this repository; every push to `main
 - `public/transactions.json` holds 900 **synthetic** transactions made by `scripts/generate-data.js`. No real customer data is used.
 - The generator plants one fraud pattern (below). Normal rows always have an IP country equal to the billing country; planted rows never do.
 - Payment methods match the customer's country: Brazil uses Visa, Mastercard, PIX and Boleto; Mexico uses Visa, Mastercard, OXXO and SPEI; Colombia uses Visa, Mastercard, PSE and Efecty. Merchants are in the customer's country.
-- The risk score gives its largest weight (+40) to an IP/country mismatch, so it is **tuned to the planted pattern**. The High Risk toggle flags 51 rows, 50 of them planted (checked 2026-11-02 on the seed-42 data). This shows the UI works; it does not show that the rules would detect real fraud.
+- The risk score gives its largest weight (+40) to an IP/country mismatch, so it is **tuned to the planted pattern**. The High Risk filter (score 70 or more) flags exactly the 50 planted rows (checked 2026-11-14 on the seed-42 data). This shows the UI works; it does not show that the rules would detect real fraud.
 - The score also uses chargebacks, which arrive after a payment, so it is an exploration aid, not a pre-authorisation fraud model.
 - The generator uses a seeded random generator (seed 42 by default), so re-running it reproduces the committed file.
 
-## Known Issues (checked 2026-11-12)
+## Known Issues (checked 2026-11-14)
 
 Fixed on 2026-11-02: the time-chart click now filters the hour that was clicked in the viewer's time zone (including half-hour zones such as India); "related transactions" no longer links PIX, Boleto, OXXO, SPEI, PSE or Efecty rows through the `N/A` card placeholder; the generator no longer gives Colombia PIX or Boleto and picks merchants from the customer's country.
+
+Fixed on 2026-11-14:
+- The chargeback-burst rule never flagged the planted attack. It measured the span of *all* of a country's chargebacks, and Brazil's 25 ordinary chargebacks spread over the week, so the 2-hour burst never fit a 4-hour span. It is now a 2-hour sliding window, and it flags 51 chargebacks from Brazil (the 50 planted ones plus one ordinary chargeback in the same two hours).
+- "Emails with 5+ transactions" flagged 87 of 203 customers, which is noise. It is now customers with 3 or more chargebacks, which finds exactly the 5 planted emails.
+- High Risk Only used a score of 50 or more while the table called 40–69 "Medium", so a row scored 55 appeared under High Risk Only labelled Medium. All views now use one threshold (70).
+- The time chart skipped hours with no transactions, so quiet periods were squeezed; empty hours are now zeros.
+- A time-chart click or an amount range changed the view without showing an active-filter tag. Every active filter now has a removable tag.
 
 Fixed on 2026-11-12: the From/To date pickers filter whole calendar days in the viewer's time zone (they used UTC days, so an analyst in India picking Feb 24 got rows from 05:30 IST Feb 24 to 05:29 IST Feb 25), and after a time-chart click they show the local day of the selected hour.
 

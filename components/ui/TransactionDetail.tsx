@@ -1,7 +1,7 @@
 "use client";
 
 import { Transaction } from "@/lib/types";
-import { findRelated, formatCurrency, formatDate } from "@/lib/utils";
+import { findRelated, formatCurrency, formatDate, riskLevel } from "@/lib/utils";
 import Badge from "./Badge";
 
 interface Props {
@@ -23,9 +23,10 @@ function Row({ label, value, warn, mono }: { label: string; value: string; warn?
 }
 
 function RiskBadge({ score }: { score: number }) {
+  const level = riskLevel(score);
   const config =
-    score >= 70 ? { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", label: "High Risk" } :
-    score >= 40 ? { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Medium" } :
+    level === "high" ? { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", label: "High Risk" } :
+    level === "medium" ? { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Medium" } :
     { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "Low Risk" };
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${config.bg} ${config.text} ${config.border}`}>

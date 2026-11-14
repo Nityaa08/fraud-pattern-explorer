@@ -23,5 +23,9 @@ export interface Filters {
   dateRange: [string, string];
   searchQuery: string;
   highRiskOnly: boolean;
+  /** Only rows whose IP country differs from the billing country. */
+  ipMismatchOnly: boolean;
+  /** Exact customer emails (empty = all). Set by the "repeat chargebacks" pattern. */
+  customerEmails: string[];
 }
 

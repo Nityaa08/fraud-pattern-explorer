@@ -1,7 +1,7 @@
 "use client";
 
 import { Transaction } from "@/lib/types";
-import { formatCurrency, formatDate, exportToCSV } from "@/lib/utils";
+import { formatCurrency, formatDate, exportToCSV, riskLevel, sortTransactions, SortDir, SortKey } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import { useState, useEffect } from "react";
 
@@ -10,14 +10,11 @@ interface Props {
   onSelect: (txn: Transaction) => void;
 }
 
-type SortKey = "timestamp" | "amount" | "country" | "status" | "riskScore";
-type SortDir = "asc" | "desc";
 
 function RiskDot({ score }: { score: number }) {
-  const color =
-    score >= 70 ? "bg-red-500" : score >= 40 ? "bg-amber-400" : "bg-emerald-400";
-  const ring =
-    score >= 70 ? "ring-red-200" : score >= 40 ? "ring-amber-200" : "ring-emerald-200";
+  const level = riskLevel(score);
+  const color = level === "high" ? "bg-red-500" : level === "medium" ? "bg-amber-400" : "bg-emerald-400";
+  const ring = level === "high" ? "ring-red-200" : level === "medium" ? "ring-amber-200" : "ring-emerald-200";
   return (
     <div className="flex items-center gap-1.5" title={`Risk score: ${score}`}>
       <span className={`inline-block w-2.5 h-2.5 rounded-full ${color} ring-2 ${ring}`} />
@@ -44,12 +41,7 @@ export default function TransactionTable({ data, onSelect }: Props) {
     setPage(0);
   };
 
-  const sorted = [...data].sort((a, b) => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    if (sortKey === "amount") return (a.amount - b.amount) * dir;
-    if (sortKey === "riskScore") return ((a.riskScore ?? 0) - (b.riskScore ?? 0)) * dir;
-    return String(a[sortKey]).localeCompare(String(b[sortKey])) * dir;
-  });
+  const sorted = sortTransactions(data, sortKey, sortDir);
 
   const pageData = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(data.length / pageSize);
@@ -139,15 +131,15 @@ export default function TransactionTable({ data, onSelect }: Props) {
             <tbody>
               {pageData.map((txn, idx) => {
                 const ipMismatch = txn.ipCountry !== txn.country;
-                const riskLevel = (txn.riskScore ?? 0) >= 70 ? "high" : (txn.riskScore ?? 0) >= 40 ? "medium" : "low";
+                const level = riskLevel(txn.riskScore);
                 return (
                   <tr
                     key={txn.id}
                     onClick={() => onSelect(txn)}
                     className={`cursor-pointer transition-colors hover:bg-indigo-50/50 ${
-                      riskLevel === "high"
+                      level === "high"
                         ? "bg-red-50/60"
-                        : riskLevel === "medium"
+                        : level === "medium"
                         ? "bg-amber-50/40"
                         : idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
                     }`}

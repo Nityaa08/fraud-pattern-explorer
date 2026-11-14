@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { groupBy, localHourStart } from "@/lib/utils";
+import { hourlySeries } from "@/lib/utils";
 
 interface Props {
   data: Transaction[];
@@ -24,17 +24,8 @@ interface Props {
 const hourLabel = (hourStartIso: string) => format(new Date(hourStartIso), "MMM dd HH:00");
 
 export default function TimeSeriesChart({ data, onClickTime }: Props) {
-  // Bucket key = UTC ISO string of the local hour start (sorts chronologically).
-  const byHour = groupBy(data, (t) => localHourStart(t.timestamp));
-
-  const chartData = Object.entries(byHour)
-    .map(([hour, txns]) => ({
-      hour,
-      total: txns.length,
-      chargebacks: txns.filter((t) => t.status === "chargeback").length,
-      approved: txns.filter((t) => t.status === "approved").length,
-    }))
-    .sort((a, b) => a.hour.localeCompare(b.hour));
+  // One point per local hour, empty hours included, so time is evenly spaced.
+  const chartData = hourlySeries(data).map((p) => ({ ...p, others: p.total - p.chargebacks }));
 
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
@@ -65,7 +56,7 @@ export default function TimeSeriesChart({ data, onClickTime }: Props) {
           <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} labelStyle={{ fontWeight: 600, color: "#334155" }} labelFormatter={(l) => hourLabel(String(l))} />
           <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-          <Area type="monotone" dataKey="approved" stackId="1" stroke="#10b981" strokeWidth={2} fill="url(#gradApproved)" name="Approved" />
+          <Area type="monotone" dataKey="others" stackId="1" stroke="#10b981" strokeWidth={2} fill="url(#gradApproved)" name="Other transactions" />
           <Area type="monotone" dataKey="chargebacks" stackId="1" stroke="#f97316" strokeWidth={2} fill="url(#gradChargebacks)" name="Chargebacks" />
         </AreaChart>
       </ResponsiveContainer>

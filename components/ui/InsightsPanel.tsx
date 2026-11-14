@@ -1,113 +1,15 @@
 "use client";
 
 import { Transaction } from "@/lib/types";
-import { formatCurrency, groupBy } from "@/lib/utils";
+import { detectInsights } from "@/lib/insights";
 
 interface Props {
   data: Transaction[];
 }
 
-interface Insight {
-  severity: "high" | "medium" | "low";
-  title: string;
-  detail: string;
-}
-
-function detectInsights(data: Transaction[]): Insight[] {
-  const insights: Insight[] = [];
-  if (data.length === 0) return insights;
-
-  const chargebacks = data.filter((t) => t.status === "chargeback");
-
-  // 1. Chargeback clustering by country + time
-  if (chargebacks.length > 0) {
-    const byCountry = groupBy(chargebacks, (t) => t.country);
-    for (const [country, txns] of Object.entries(byCountry)) {
-      if (txns.length >= 5) {
-        const sorted = [...txns].sort(
-          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-        const firstTime = new Date(sorted[0].timestamp);
-        const lastTime = new Date(sorted[sorted.length - 1].timestamp);
-        const hourSpan = (lastTime.getTime() - firstTime.getTime()) / (1000 * 60 * 60);
-
-        if (hourSpan <= 4 && txns.length >= 10) {
-          const avgAmt = txns.reduce((s, t) => s + t.amount, 0) / txns.length;
-          const methods = Array.from(new Set(txns.map((t) => t.paymentMethod)));
-          insights.push({
-            severity: "high",
-            title: `${txns.length} chargebacks clustered in ${country}`,
-            detail: `Within ${hourSpan.toFixed(1)}h window, avg ${formatCurrency(avgAmt)}, via ${methods.join("/")}`,
-          });
-        } else if (txns.length >= 5) {
-          insights.push({
-            severity: "medium",
-            title: `${txns.length} chargebacks from ${country}`,
-            detail: `Elevated chargeback volume detected`,
-          });
-        }
-      }
-    }
-  }
-
-  // 2. IP mismatch concentration
-  const ipMismatches = data.filter((t) => t.ipCountry !== t.country);
-  if (ipMismatches.length >= 5) {
-    const cbMismatches = ipMismatches.filter((t) => t.status === "chargeback");
-    insights.push({
-      severity: cbMismatches.length >= 10 ? "high" : "medium",
-      title: `${ipMismatches.length} IP/country mismatches`,
-      detail: `${cbMismatches.length} are chargebacks — possible cross-border fraud`,
-    });
-  }
-
-  // 3. Email velocity
-  const byEmail = groupBy(data, (t) => t.customerEmail);
-  const velocityEmails = Object.entries(byEmail).filter(([, txns]) => txns.length >= 5);
-  if (velocityEmails.length > 0) {
-    const top = velocityEmails.sort((a, b) => b[1].length - a[1].length)[0];
-    insights.push({
-      severity: top[1].length >= 10 ? "high" : "medium",
-      title: `${velocityEmails.length} emails with 5+ transactions`,
-      detail: `Top: ${top[0]} (${top[1].length} txns)`,
-    });
-  }
-
-  // 4. High amount outliers
-  const amounts = data.map((t) => t.amount);
-  const avg = amounts.reduce((s, a) => s + a, 0) / amounts.length;
-  const highAmountTxns = data.filter((t) => t.amount > avg * 3);
-  if (highAmountTxns.length > 0) {
-    const cbHigh = highAmountTxns.filter((t) => t.status === "chargeback");
-    if (cbHigh.length >= 3) {
-      insights.push({
-        severity: "high",
-        title: `${cbHigh.length} high-amount chargebacks`,
-        detail: `Over ${formatCurrency(avg * 3)} (3x avg of ${formatCurrency(avg)})`,
-      });
-    }
-  }
-
-  // 5. Overall chargeback rate
-  const cbRate = chargebacks.length / data.length;
-  if (cbRate > 0.05) {
-    insights.push({
-      severity: cbRate > 0.15 ? "high" : "medium",
-      title: `Chargeback rate: ${(cbRate * 100).toFixed(1)}%`,
-      detail: `${chargebacks.length} of ${data.length} — above 5% threshold`,
-    });
-  }
-
-  return insights.sort((a, b) => {
-    const order = { high: 0, medium: 1, low: 2 };
-    return order[a.severity] - order[b.severity];
-  });
-}
-
 const severityConfig = {
   high: { bg: "bg-red-50", border: "border-red-200", text: "text-red-900", dot: "bg-red-500", icon: "text-red-500" },
   medium: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-900", dot: "bg-amber-400", icon: "text-amber-500" },
-  low: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-900", dot: "bg-blue-400", icon: "text-blue-500" },
 };
 
 export default function InsightsPanel({ data }: Props) {

@@ -1,15 +1,41 @@
 import { Transaction, Filters } from "./types";
 
+/** Score at or above which a transaction is "high risk" (table, detail panel and the High Risk filter). */
+export const HIGH_RISK = 70;
+/** Score at or above which a transaction is "medium risk". */
+export const MEDIUM_RISK = 40;
+
+export type RiskLevel = "high" | "medium" | "low";
+
+/** One place that turns a score into a level, so every view agrees. */
+export function riskLevel(score: number | undefined): RiskLevel {
+  const s = score ?? 0;
+  return s >= HIGH_RISK ? "high" : s >= MEDIUM_RISK ? "medium" : "low";
+}
+
+export interface RiskSignal {
+  label: string;
+  points: number;
+}
+
+/** The signals that add to a transaction's risk score, with their points. */
+export function riskSignals(t: Transaction): RiskSignal[] {
+  const signals: RiskSignal[] = [];
+  if (t.ipCountry !== t.country) signals.push({ label: `IP in ${t.ipCountry}, billing in ${t.country}`, points: 40 });
+  if (t.status === "chargeback") signals.push({ label: "Chargeback", points: 25 });
+  if (t.amount > 400) signals.push({ label: "Amount over $400", points: 15 });
+  if (t.customerEmail.includes("proton.me")) signals.push({ label: "proton.me email", points: 10 });
+  if (t.paymentMethod === "Visa" || t.paymentMethod === "Mastercard") signals.push({ label: "Card payment", points: 5 });
+  if (t.productCategory === "Electronics") signals.push({ label: "Electronics", points: 5 });
+  return signals;
+}
+
 /** Compute a 0–100 risk score for a transaction based on fraud indicators */
 export function computeRiskScore(t: Transaction): number {
-  let score = 0;
-  if (t.ipCountry !== t.country) score += 40;
-  if (t.status === "chargeback") score += 25;
-  if (t.amount > 400) score += 15;
-  if (t.paymentMethod === "Visa" || t.paymentMethod === "Mastercard") score += 5;
-  if (t.productCategory === "Electronics") score += 5;
-  if (t.customerEmail.includes("proton.me")) score += 10;
-  return Math.min(score, 100);
+  return Math.min(
+    riskSignals(t).reduce((s, x) => s + x.points, 0),
+    100
+  );
 }
 
 export function applyFilters(
@@ -32,7 +58,14 @@ export function applyFilters(
       return false;
     if (filters.dateRange[1] && t.timestamp > filters.dateRange[1])
       return false;
-    if (filters.highRiskOnly && (t.riskScore ?? 0) < 50)
+    if (filters.highRiskOnly && riskLevel(t.riskScore) !== "high")
+      return false;
+    if (filters.ipMismatchOnly && t.ipCountry === t.country)
+      return false;
+    if (
+      filters.customerEmails.length > 0 &&
+      !filters.customerEmails.includes(t.customerEmail)
+    )
       return false;
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
@@ -129,6 +162,92 @@ export function findRelated(t: Transaction, all: Transaction[]): Transaction[] {
       (r.customerEmail === t.customerEmail ||
         (card && hasCardData(r) && r.cardLast4 === t.cardLast4 && r.cardBIN === t.cardBIN))
   );
+}
+
+export interface HourPoint {
+  /** UTC ISO start of the local hour. */
+  hour: string;
+  total: number;
+  chargebacks: number;
+}
+
+/**
+ * Transactions and chargebacks per local hour, from the first to the last
+ * hour in `data`, with empty hours included as zeros. Without the zeros the
+ * x-axis would skip quiet hours and squeeze time unevenly.
+ */
+export function hourlySeries(data: Transaction[]): HourPoint[] {
+  if (data.length === 0) return [];
+  const counts = new Map<number, HourPoint>();
+  let first = Infinity;
+  let last = -Infinity;
+  for (const t of data) {
+    const key = new Date(localHourStart(t.timestamp)).getTime();
+    first = Math.min(first, key);
+    last = Math.max(last, key);
+    const p = counts.get(key) ?? { hour: new Date(key).toISOString(), total: 0, chargebacks: 0 };
+    p.total++;
+    if (t.status === "chargeback") p.chargebacks++;
+    counts.set(key, p);
+  }
+  const out: HourPoint[] = [];
+  // Step one hour of real time; the local-hour start keeps its offset, so this
+  // stays on local hour boundaries (zones with :30 and :45 offsets included).
+  for (let k = first; k <= last; k += 3_600_000) {
+    out.push(counts.get(k) ?? { hour: new Date(k).toISOString(), total: 0, chargebacks: 0 });
+  }
+  return out;
+}
+
+export interface AmountBucket {
+  label: string;
+  min: number;
+  max: number;
+}
+
+export const AMOUNT_BUCKETS: AmountBucket[] = [
+  { label: "Under $50", min: 0, max: 50 },
+  { label: "$50–100", min: 50, max: 100 },
+  { label: "$100–200", min: 100, max: 200 },
+  { label: "$200–300", min: 200, max: 300 },
+  { label: "$300–500", min: 300, max: 500 },
+  { label: "$500–700", min: 500, max: 700 },
+  { label: "$700+", min: 700, max: Infinity },
+];
+
+export const bucketKey = (b: AmountBucket) => `${b.min}`;
+
+/**
+ * Inclusive amount filter for a bucket. Buckets are [min, max), and amounts
+ * have cents, so the upper end is max − 0.01; the open-ended bucket uses the
+ * data's upper bound.
+ */
+export function bucketRange(b: AmountBucket, upperBound: number): [number, number] {
+  return [b.min, Number.isFinite(b.max) ? Math.round((b.max - 0.01) * 100) / 100 : upperBound];
+}
+
+/** The bucket whose range is exactly the current amount filter, if any. */
+export function selectedBucket(range: [number, number], upperBound: number): AmountBucket | null {
+  return (
+    AMOUNT_BUCKETS.find((b) => {
+      const [lo, hi] = bucketRange(b, upperBound);
+      return lo === range[0] && hi === range[1];
+    }) ?? null
+  );
+}
+
+export type SortKey = "timestamp" | "amount" | "country" | "status" | "riskScore";
+export type SortDir = "asc" | "desc";
+
+/** Sorted copy. Ties fall back to newest first, so the order never depends on load order. */
+export function sortTransactions(data: Transaction[], key: SortKey, dir: SortDir): Transaction[] {
+  const sign = dir === "asc" ? 1 : -1;
+  const cmp = (a: Transaction, b: Transaction): number => {
+    if (key === "amount") return a.amount - b.amount;
+    if (key === "riskScore") return (a.riskScore ?? 0) - (b.riskScore ?? 0);
+    return String(a[key]).localeCompare(String(b[key]));
+  };
+  return [...data].sort((a, b) => cmp(a, b) * sign || b.timestamp.localeCompare(a.timestamp) || a.id.localeCompare(b.id));
 }
 
 export function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {

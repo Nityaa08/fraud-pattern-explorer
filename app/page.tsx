@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Transaction, Filters } from "@/lib/types";
 import { loadTransactions, getUniqueValues, getAmountRange, getDateRange } from "@/lib/data";
 import { applyFilters, computeRiskScore, hourRange } from "@/lib/utils";
+import { activeFilterChips } from "@/lib/filterChips";
 import FilterPanel from "@/components/filters/FilterPanel";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart";
 import CountryChart from "@/components/charts/CountryChart";
@@ -22,6 +23,8 @@ const defaultFilters: Filters = {
   dateRange: ["", ""],
   searchQuery: "",
   highRiskOnly: false,
+  ipMismatchOnly: false,
+  customerEmails: [],
 };
 
 export default function Dashboard() {
@@ -89,38 +92,11 @@ export default function Dashboard() {
     setFilters((f) => ({ ...f, dateRange: hourRange(hourStartIso) }));
   };
 
-  // Active filter tags for display
-  const activeFilterTags: { label: string; onRemove: () => void }[] = [];
-  filters.countries.forEach((c) =>
-    activeFilterTags.push({
-      label: c,
-      onRemove: () => setFilters((f) => ({ ...f, countries: f.countries.filter((x) => x !== c) })),
-    })
-  );
-  filters.paymentMethods.forEach((m) =>
-    activeFilterTags.push({
-      label: m,
-      onRemove: () => setFilters((f) => ({ ...f, paymentMethods: f.paymentMethods.filter((x) => x !== m) })),
-    })
-  );
-  filters.statuses.forEach((s) =>
-    activeFilterTags.push({
-      label: s,
-      onRemove: () => setFilters((f) => ({ ...f, statuses: f.statuses.filter((x) => x !== s) })),
-    })
-  );
-  if (filters.highRiskOnly) {
-    activeFilterTags.push({
-      label: "High Risk Only",
-      onRemove: () => setFilters((f) => ({ ...f, highRiskOnly: false })),
-    });
-  }
-  if (filters.searchQuery) {
-    activeFilterTags.push({
-      label: `"${filters.searchQuery}"`,
-      onRemove: () => setFilters((f) => ({ ...f, searchQuery: "" })),
-    });
-  }
+  // Active filters as removable tags, including date and amount ranges
+  const activeFilterTags = activeFilterChips(filters, { amount: amountBounds, date: dateBounds }).map((c) => ({
+    label: c.label,
+    onRemove: () => setFilters((f) => c.remove(f)),
+  }));
 
   if (loading) {
     return (

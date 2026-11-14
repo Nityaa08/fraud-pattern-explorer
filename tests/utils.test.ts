@@ -25,6 +25,8 @@ const noFilters: Filters = {
   dateRange: ["", ""],
   searchQuery: "",
   highRiskOnly: false,
+  ipMismatchOnly: false,
+  customerEmails: [],
 };
 
 const ORIGINAL_TZ = process.env.TZ;
