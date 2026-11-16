@@ -259,26 +259,40 @@ export function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T
   }, {} as Record<string, T[]>);
 }
 
-/** Export filtered transactions as CSV and trigger download */
-export function exportToCSV(transactions: Transaction[], filename: string) {
-  const headers = [
-    "ID", "Timestamp", "Amount", "Currency", "Country", "Payment Method",
-    "Status", "Customer Email", "Card Last 4", "Card BIN",
-    "Product Category", "IP Country", "Merchant ID", "Risk Score",
-  ];
+const CSV_HEADERS = [
+  "ID", "Timestamp", "Amount", "Currency", "Country", "Payment Method",
+  "Status", "Customer Email", "Card Last 4", "Card BIN",
+  "Product Category", "IP Country", "Merchant ID", "Risk Score",
+];
+
+/**
+ * One CSV cell. Text that starts with =, +, -, @, tab or carriage return is
+ * prefixed with ' so Excel, Sheets and LibreOffice show it as text instead of
+ * running it as a formula (OWASP "CSV injection"). Fields such as the customer
+ * email come from whoever placed the order, so a fraudster can choose them.
+ * Numbers are left alone, so amounts and scores stay numeric.
+ */
+export function csvCell(val: unknown): string {
+  if (typeof val === "number") return Number.isFinite(val) ? String(val) : "";
+  let str = String(val ?? "");
+  if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+/** The CSV text for a list of transactions: a header row, then one row each. */
+export function transactionsToCSV(transactions: Transaction[]): string {
   const rows = transactions.map((t) => [
     t.id, t.timestamp, t.amount, t.currency, t.country,
     t.paymentMethod, t.status, t.customerEmail, t.cardLast4,
     t.cardBIN, t.productCategory, t.ipCountry, t.merchantId,
     t.riskScore ?? "",
   ]);
-  const escapeCSV = (val: unknown) => {
-    const str = String(val ?? "");
-    return str.includes(",") || str.includes('"') || str.includes("\n")
-      ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const csv = [headers.join(","), ...rows.map((r) => r.map(escapeCSV).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+  return [CSV_HEADERS.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
+}
+
+/** Export filtered transactions as CSV and trigger download */
+export function exportToCSV(transactions: Transaction[], filename: string) {
+  const blob = new Blob([transactionsToCSV(transactions)], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

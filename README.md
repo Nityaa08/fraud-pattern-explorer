@@ -15,7 +15,7 @@ A frontend-only fraud analytics dashboard that helps risk analysts find fraud pa
 | **The problem** | A fraud attack hides inside normal traffic. An analyst needs to get from "something is off" to "these 50 rows" fast, and needs to trust that the alerts are real. |
 | **What I built** | A Next.js dashboard where fixed rules flag suspicious patterns, every chart doubles as a filter, and each row explains its own risk score. A three-step tour at the top of the page shows the attack, opens the riskiest row and resets. |
 | **How I know it works** | The rules are scored against an answer key of the 50 planted rows (`public/planted.json`) that the rules never read. The scorecard is on the page and in the table below. |
-| **Engineering** | TypeScript, React state in one component, Recharts, Tailwind. 52 Vitest tests including five time zones and a daylight-saving day. CI runs type-check, lint, tests and build on every push. |
+| **Engineering** | TypeScript, React state in one component, Recharts, Tailwind. 62 Vitest tests including five time zones and a daylight-saving day. CI runs type-check, lint, tests and build on every push. |
 
 **Rule scorecard** (seed-42 data, checked by `tests/scorecard.test.ts`):
 
@@ -73,12 +73,12 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 52 tests
+npm test          # vitest: 62 tests
 npm run lint
 npm run build
 ```
 
-The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the rule scorecard (precision and recall arithmetic, and the scores of every rule against the answer key), the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, amount buckets, table sorting, and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-14.
+The tests cover the time-chart hour buckets and the From/To date pickers in five time zones (UTC, India, Brazil, Nepal, US Pacific, including a 23-hour daylight-saving day), related-transaction matching, the rule scorecard (precision and recall arithmetic, and the scores of every rule against the answer key), the suspicious-pattern rules (the planted burst and the 5 repeat-chargeback emails are found, and every pattern's filter shows as many rows as it reports), one risk threshold across views, gap-filled hourly series, active-filter tags, amount buckets, table sorting, the CSV export (cells that a spreadsheet would run as formulas are neutralised, and every row reads back to the same values), and the generator (reproducible, country-consistent payment methods and merchants, planted pattern intact). All three commands passed on 2026-11-16.
 
 ## Deploy to Vercel
 
@@ -118,7 +118,9 @@ The live demo is a Vercel project linked to this repository; every push to `main
 - The score also uses chargebacks, which arrive after a payment, so it is an exploration aid, not a pre-authorisation fraud model.
 - The generator uses a seeded random generator (seed 42 by default), so re-running it reproduces the committed file.
 
-## Known Issues (checked 2026-11-14)
+## Known Issues (checked 2026-11-16)
+
+Fixed on 2026-11-16: the CSV export could run attacker-chosen formulas. A customer email such as `=HYPERLINK("http://evil.example","Click")` is chosen by whoever placed the order, and the export only quoted it, so Excel or Sheets would treat it as a formula when an analyst opened the file. Text cells that start with `=`, `+`, `-`, `@`, a tab or a carriage return now get a leading `'` (the OWASP CSV-injection guidance), numbers stay numeric, and rows end with CRLF as RFC 4180 expects.
 
 Fixed on 2026-11-02: the time-chart click now filters the hour that was clicked in the viewer's time zone (including half-hour zones such as India); "related transactions" no longer links PIX, Boleto, OXXO, SPEI, PSE or Efecty rows through the `N/A` card placeholder; the generator no longer gives Colombia PIX or Boleto and picks merchants from the customer's country.
 
