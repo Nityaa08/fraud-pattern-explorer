@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/Nityaa08/fraud-pattern-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Nityaa08/fraud-pattern-explorer/actions/workflows/ci.yml)
 
-**Live demo: [fraud-pattern-explorer.vercel.app](https://fraud-pattern-explorer.vercel.app)** · by [Nityashree S](https://nityashree.in)
+**Live demo: [fraud.nityashree.in](https://fraud.nityashree.in)** · by [Nityashree S](https://nityashree.in)
 
 A frontend-only fraud analytics dashboard that helps risk analysts find fraud patterns in a set of transactions: rule-based pattern cards with one-click drill-down, linked filters, chart-click filtering and a detail panel that explains each risk score. It runs on 900 synthetic transactions with one planted pattern.
 
-[![Dashboard: a dark case-file panel with a three-step tour and a rule scorecard of precision and recall against the planted attack, then the summary and four suspicious-pattern cards](docs/screenshot.png)](https://fraud-pattern-explorer.vercel.app)
+[![Dashboard: a dark case-file panel with a three-step tour and a rule scorecard of precision and recall against the planted attack, then the summary and four suspicious-pattern cards](docs/screenshot.png)](https://fraud.nityashree.in)
 
 ## In 60 seconds
 
