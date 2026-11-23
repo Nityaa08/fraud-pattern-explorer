@@ -136,6 +136,19 @@ export function localDayEnd(day: string): string {
   return new Date(new Date(y, m - 1, d + 1).getTime() - 1).toISOString();
 }
 
+/**
+ * The number an amount box stands for. An empty box (the user cleared it to
+ * type a new value) or anything that is not a number means "no limit on this
+ * side", so the bound is used. Number("") is 0, which used to turn a cleared
+ * maximum into "$0" and hide every transaction while the user was typing.
+ */
+export function amountFromInput(text: string, bound: number): number {
+  const trimmed = text.trim();
+  if (trimmed === "") return bound;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : bound;
+}
+
 /** The local calendar day ("YYYY-MM-DD") that contains `iso`, for a date input's value. */
 export function localDay(iso: string): string {
   if (!iso) return "";

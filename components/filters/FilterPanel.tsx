@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Filters } from "@/lib/types";
-import { localDay, localDayEnd, localDayStart } from "@/lib/utils";
+import { amountFromInput, localDay, localDayEnd, localDayStart } from "@/lib/utils";
 
 interface FilterPanelProps {
   filters: Filters;
@@ -15,6 +16,50 @@ interface FilterPanelProps {
 
 const inputCls =
   "w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+
+/**
+ * A number box that keeps what the user typed. The filter gets the parsed
+ * amount, and an empty box means no limit (the bound shows as a placeholder),
+ * so clearing the box to type a new amount does not filter everything out.
+ */
+function AmountInput({
+  label,
+  value,
+  bound,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  bound: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  // A chart click, a removed chip or "Reset" changes the value from outside.
+  useEffect(() => {
+    if (amountFromInput(text, bound) !== value) setText(String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, bound]);
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      aria-label={label}
+      min={min}
+      max={max}
+      placeholder={String(bound)}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(amountFromInput(e.target.value, bound));
+      }}
+      className={inputCls}
+    />
+  );
+}
 
 function Group({ label, children, htmlFor }: { label: string; children: React.ReactNode; htmlFor?: string }) {
   return (
@@ -157,24 +202,22 @@ export default function FilterPanel({
 
       <Group label="Amount (USD)">
         <div className="flex items-center gap-2">
-          <input
-            type="number"
-            aria-label="Minimum amount"
+          <AmountInput
+            label="Minimum amount"
+            value={filters.amountRange[0]}
+            bound={amountBounds[0]}
             min={amountBounds[0]}
             max={filters.amountRange[1]}
-            value={filters.amountRange[0]}
-            onChange={(e) => update({ amountRange: [Number(e.target.value), filters.amountRange[1]] })}
-            className={inputCls}
+            onChange={(lo) => update({ amountRange: [lo, filters.amountRange[1]] })}
           />
           <span className="text-slate-400">–</span>
-          <input
-            type="number"
-            aria-label="Maximum amount"
+          <AmountInput
+            label="Maximum amount"
+            value={filters.amountRange[1]}
+            bound={amountBounds[1]}
             min={filters.amountRange[0]}
             max={amountBounds[1]}
-            value={filters.amountRange[1]}
-            onChange={(e) => update({ amountRange: [filters.amountRange[0], Number(e.target.value)] })}
-            className={inputCls}
+            onChange={(hi) => update({ amountRange: [filters.amountRange[0], hi] })}
           />
         </div>
       </Group>

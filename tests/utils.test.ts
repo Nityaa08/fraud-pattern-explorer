@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { Filters, Transaction } from "../lib/types";
 import {
+  amountFromInput,
   applyFilters,
   findRelated,
   hasCardData,
@@ -142,5 +143,28 @@ describe("related transactions", () => {
     expect(nonCard.length).toBeGreaterThan(100);
     const maxRelated = Math.max(...nonCard.map((t) => findRelated(t, data).length));
     expect(maxRelated).toBeLessThan(20);
+  });
+});
+
+describe("amountFromInput", () => {
+  it("treats a cleared box as no limit, not $0", () => {
+    // Clearing the maximum to type a new one used to filter to amount <= 0.
+    expect(amountFromInput("", 799)).toBe(799);
+    expect(amountFromInput("   ", 22)).toBe(22);
+    const cleared = applyFilters(data, { ...noFilters, amountRange: [0, amountFromInput("", 1000)] });
+    expect(cleared.length).toBe(data.length);
+  });
+
+  it("reads what the user typed", () => {
+    expect(amountFromInput("500", 799)).toBe(500);
+    expect(amountFromInput("0500", 799)).toBe(500);
+    expect(amountFromInput("12.5", 799)).toBe(12.5);
+    expect(amountFromInput("0", 799)).toBe(0);
+  });
+
+  it("falls back to the bound for anything that is not a finite number", () => {
+    expect(amountFromInput("abc", 799)).toBe(799);
+    expect(amountFromInput("1e999", 799)).toBe(799);
+    expect(amountFromInput("-", 22)).toBe(22);
   });
 });
