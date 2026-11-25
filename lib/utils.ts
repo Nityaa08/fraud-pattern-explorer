@@ -279,6 +279,17 @@ const CSV_HEADERS = [
 ];
 
 /**
+ * The header's row count, read aloud: "51 of 900 transactions shown". The
+ * visible text is shorter ("51 of 900 shown", or "51/900" on a phone), so
+ * screen readers get this instead of a bare number.
+ */
+export function shownLabel(shown: number, total: number): string {
+  const n = (x: number) => x.toLocaleString("en-US");
+  if (shown === total) return `All ${n(total)} transactions shown`;
+  return `${n(shown)} of ${n(total)} transaction${total === 1 ? "" : "s"} shown`;
+}
+
+/**
  * One CSV cell. Text that starts with =, +, -, @, tab or carriage return is
  * prefixed with ' so Excel, Sheets and LibreOffice show it as text instead of
  * running it as a formula (OWASP "CSV injection"). Fields such as the customer

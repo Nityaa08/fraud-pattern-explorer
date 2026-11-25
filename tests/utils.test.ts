@@ -12,6 +12,7 @@ import {
   localDayEnd,
   localDayStart,
   localHourStart,
+  shownLabel,
 } from "../lib/utils";
 
 const data: Transaction[] = JSON.parse(
@@ -166,5 +167,18 @@ describe("amountFromInput", () => {
     expect(amountFromInput("abc", 799)).toBe(799);
     expect(amountFromInput("1e999", 799)).toBe(799);
     expect(amountFromInput("-", 22)).toBe(22);
+  });
+});
+
+describe("shownLabel", () => {
+  // At 390 px the header used to show only "51": the "of 900 shown" part was
+  // display:none on phones, so a screen reader also heard just the number.
+  it("says how many of how many transactions are shown", () => {
+    expect(shownLabel(51, 900)).toBe("51 of 900 transactions shown");
+    expect(shownLabel(0, 900)).toBe("0 of 900 transactions shown");
+    expect(shownLabel(1234, 12000)).toBe("1,234 of 12,000 transactions shown");
+  });
+  it("says all when nothing is filtered out", () => {
+    expect(shownLabel(900, 900)).toBe("All 900 transactions shown");
   });
 });

@@ -11,6 +11,7 @@ import {
   computeRiskScore,
   hourRange,
   selectedBucket,
+  shownLabel,
 } from "@/lib/utils";
 import { detectInsights, Insight } from "@/lib/insights";
 import { activeFilterChips } from "@/lib/filterChips";
@@ -208,8 +209,14 @@ export default function Dashboard() {
           </div>
           <div className="flex shrink-0 items-center gap-4 text-xs">
             <span className="tabular-nums text-slate-500" aria-live="polite">
-              <span className="font-semibold text-slate-900">{filtered.length.toLocaleString("en-US")}</span>
-              <span className="hidden sm:inline"> of {allData.length.toLocaleString("en-US")} shown</span>
+              {/* Phones have room for "51/900", wider screens for "51 of 900 shown";
+                  screen readers hear the full sentence from shownLabel. */}
+              <span aria-hidden>
+                <span className="font-semibold text-slate-900">{filtered.length.toLocaleString("en-US")}</span>
+                <span className="sm:hidden">/{allData.length.toLocaleString("en-US")}</span>
+                <span className="hidden sm:inline"> of {allData.length.toLocaleString("en-US")} shown</span>
+              </span>
+              <span className="sr-only">{shownLabel(filtered.length, allData.length)}</span>
             </span>
             <a
               href="https://github.com/Nityaa08/fraud-pattern-explorer"

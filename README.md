@@ -15,7 +15,7 @@ A frontend-only fraud analytics dashboard that helps risk analysts find fraud pa
 | **The problem** | A fraud attack hides inside normal traffic. An analyst needs to get from "something is off" to "these 50 rows" fast, and needs to trust that the alerts are real. |
 | **What I built** | A Next.js dashboard where fixed rules flag suspicious patterns, every chart doubles as a filter, and each row explains its own risk score. A three-step tour at the top of the page shows the attack, opens the riskiest row and resets. |
 | **How I know it works** | The rules are scored against an answer key of the 50 planted rows (`public/planted.json`) that the rules never read. The scorecard is on the page and in the table below. |
-| **Engineering** | TypeScript, React state in one component, Recharts, Tailwind. 65 Vitest tests including five time zones and a daylight-saving day. CI runs type-check, lint, tests and build on every push. |
+| **Engineering** | TypeScript, React state in one component, Recharts, Tailwind. 67 Vitest tests including five time zones and a daylight-saving day. CI runs type-check, lint, tests and build on every push. |
 
 **Rule scorecard** (seed-42 data, checked by `tests/scorecard.test.ts`):
 
@@ -73,7 +73,7 @@ This generates 900 transactions in `public/transactions.json` with an embedded f
 ## Tests
 
 ```bash
-npm test          # vitest: 65 tests
+npm test          # vitest: 67 tests
 npm run lint
 npm run build
 ```
