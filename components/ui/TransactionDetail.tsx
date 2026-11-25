@@ -34,7 +34,23 @@ const levelText = { high: "High risk", medium: "Medium risk", low: "Low risk" };
 export default function TransactionDetail({ transaction: t, onClose, allTransactions, onSelectRelated }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const shownId = useRef<string | null>(null);
   const isOpen = t !== null;
+  const id = t?.id ?? null;
+
+  // Opening a related transaction swaps the panel's content: the button that
+  // was clicked disappears (focus fell to <body>) and the scroll position was
+  // kept (on a phone the new one opened at its Related list). Start at the
+  // top and move focus to the heading, so a screen reader announces it.
+  useEffect(() => {
+    const previous = shownId.current;
+    shownId.current = id;
+    if (!previous || !id || previous === id) return;
+    bodyRef.current?.scrollTo?.({ top: 0 });
+    headingRef.current?.focus();
+  }, [id]);
 
   // Escape closes; focus moves into the panel and back to where it was.
   useEffect(() => {
@@ -89,7 +105,7 @@ export default function TransactionDetail({ transaction: t, onClose, allTransact
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <h2 id="detail-heading" className="text-sm font-semibold text-slate-900">
+          <h2 id="detail-heading" ref={headingRef} tabIndex={-1} className="text-sm font-semibold text-slate-900 outline-none">
             Transaction <span className="font-mono text-[12px] font-normal text-slate-500">{t.id}</span>
           </h2>
           <button
@@ -103,7 +119,7 @@ export default function TransactionDetail({ transaction: t, onClose, allTransact
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">{formatCurrency(t.amount)}</p>
