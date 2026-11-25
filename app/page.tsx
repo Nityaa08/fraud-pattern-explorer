@@ -13,7 +13,7 @@ import {
   selectedBucket,
   shownLabel,
 } from "@/lib/utils";
-import { detectInsights, Insight } from "@/lib/insights";
+import { detectInsights, Insight, withAppliedInsight } from "@/lib/insights";
 import { activeFilterChips } from "@/lib/filterChips";
 import FilterPanel from "@/components/filters/FilterPanel";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart";
@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [allData, setAllData] = useState<Transaction[]>([]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [selected, setSelected] = useState<Transaction | null>(null);
+  const [appliedInsight, setAppliedInsight] = useState<Insight | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -107,7 +108,10 @@ export default function Dashboard() {
     [allData, filters, amountBounds]
   );
 
-  const insights = useMemo(() => detectInsights(filtered), [filtered]);
+  const insights = useMemo(
+    () => withAppliedInsight(detectInsights(filtered), appliedInsight, (i) => includesPatch(filters, i.filter)),
+    [filtered, appliedInsight, filters]
+  );
   const allFilters = useMemo(
     () => ({ ...defaultFilters, amountRange: amountBounds, dateRange: dateBounds }),
     [amountBounds, dateBounds]
@@ -128,7 +132,10 @@ export default function Dashboard() {
   }, [allFilters]);
   const closeDetail = useCallback(() => setSelected(null), []);
 
-  const applyInsight = (insight: Insight) => setFilters((f) => ({ ...f, ...insight.filter }));
+  const applyInsight = (insight: Insight) => {
+    setAppliedInsight(insight);
+    setFilters((f) => ({ ...f, ...insight.filter }));
+  };
 
   const openRiskiest = () => {
     const pool = filtered.length ? filtered : allData;

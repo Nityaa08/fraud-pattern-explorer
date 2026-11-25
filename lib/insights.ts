@@ -136,3 +136,21 @@ export function detectInsights(data: Transaction[]): Insight[] {
   const order: Record<Severity, number> = { high: 0, medium: 1 };
   return insights.sort((a, b) => order[a.severity] - order[b.severity]);
 }
+
+/**
+ * The cards to show: the rules run on the current view, plus the card whose
+ * filter is applied right now, if the rules no longer find it.
+ *
+ * A rule that measures the view can stop matching once its own filter is on:
+ * "chargebacks above 3x the average" applied leaves only those rows, whose
+ * average is higher, so the card vanished right after "Show these" instead of
+ * staying as the active one.
+ */
+export function withAppliedInsight(
+  current: Insight[],
+  applied: Insight | null,
+  isActive: (insight: Insight) => boolean
+): Insight[] {
+  if (!applied || !isActive(applied) || current.some((i) => i.id === applied.id)) return current;
+  return [...current, applied];
+}

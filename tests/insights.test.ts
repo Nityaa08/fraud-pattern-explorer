@@ -13,7 +13,7 @@ import {
   HIGH_RISK,
 } from "../lib/utils";
 import * as utils from "../lib/utils";
-import { detectInsights, findChargebackBurst } from "../lib/insights";
+import { detectInsights, findChargebackBurst, withAppliedInsight } from "../lib/insights";
 import { activeFilterChips } from "../lib/filterChips";
 
 const raw: Transaction[] = JSON.parse(
@@ -229,5 +229,39 @@ describe("amount buckets", () => {
     }
     expect(total).toBe(data.length);
     expect(selectedBucket([0, upper], upper)).toBeNull();
+  });
+});
+
+describe("the applied pattern card", () => {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const activeIn = (f: Filters) => (i: { filter: Partial<Filters> }) =>
+    (Object.keys(i.filter) as (keyof Filters)[]).every((k) => same(f[k], i.filter[k]));
+
+  it("stays on screen after its own filter is applied", () => {
+    // Applying "chargebacks above 3x the average" leaves only those rows; their
+    // average is higher, so the rule no longer fires on the view and the card vanished.
+    const high = detectInsights(data).find((i) => i.id === "high-amount")!;
+    expect(high).toBeDefined();
+    const after = { ...all, ...high.filter };
+    const view = applyFilters(data, after);
+    expect(view).toHaveLength(high.count);
+    const rerun = detectInsights(view);
+    expect(rerun.some((i) => i.id === "high-amount")).toBe(false);
+
+    const shown = withAppliedInsight(rerun, high, activeIn(after));
+    expect(shown.filter((i) => i.id === "high-amount")).toHaveLength(1);
+  });
+
+  it("goes away once its filter is changed or cleared", () => {
+    const high = detectInsights(data).find((i) => i.id === "high-amount")!;
+    expect(withAppliedInsight([], high, activeIn(all))).toEqual([]);
+    expect(withAppliedInsight([], null, activeIn(all))).toEqual([]);
+  });
+
+  it("is not shown twice when the rules still find it", () => {
+    const cards = detectInsights(data);
+    const ip = cards.find((i) => i.id === "ip-mismatch")!;
+    const shown = withAppliedInsight(cards, ip, activeIn({ ...all, ...ip.filter }));
+    expect(shown.filter((i) => i.id === "ip-mismatch")).toHaveLength(1);
   });
 });
